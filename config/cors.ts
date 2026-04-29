@@ -1,76 +1,84 @@
-import app from '@adonisjs/core/services/app'
 import { defineConfig } from '@adonisjs/cors'
-import env from '#start/env'
 
-function parseExplicitOrigins(): string[] {
-  const raw = env.get('CORS_ORIGIN')
-  if (!raw || typeof raw !== 'string') {
-    return []
-  }
-  return raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
+// ---------------------------------------------------------------------------
+// Read CORS_ORIGIN DIRECTLY from process.env — ground truth, no caching layer
+// ---------------------------------------------------------------------------
+const RAW_CORS_ORIGIN = process.env.CORS_ORIGIN ?? ''
+
+console.log(
+  `[cors] CORS_ORIGIN read from process.env: ${RAW_CORS_ORIGIN || '(not set)'}`
+)
+
+/**
+ * Normalize an origin string for comparison:
+ *   - lowercase
+ *   - strip trailing slash
+ */
+function normalize(origin: string): string {
+  return origin.trim().toLowerCase().replace(/\/+$/, '')
 }
 
 /**
- * Orígenes típicos de la LAN (HTTP/HTTPS, cualquier puerto).
+ * Build the allow-list once at module load time.
+ * Each entry is stored as { raw, normalized } so we can echo back the
+ * original casing in the response header (required for credentialed requests).
  */
-function isPrivateLanOrigin(origin: string): boolean {
-  try {
-    const { hostname } = new URL(origin)
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return true
-    }
-    if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
-      return true
-    }
-    if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
-      return true
-    }
-    const m = /^172\.(\d{1,3})\./.exec(hostname)
-    if (m) {
-      const second = Number(m[1])
-      if (second >= 16 && second <= 31) {
-        return true
-      }
-    }
-    return false
-  } catch {
-    return false
-  }
-}
+const ALLOW_LIST: Array<{ raw: string; normalized: string }> = RAW_CORS_ORIGIN
+  ? RAW_CORS_ORIGIN.split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((raw) => ({ raw, normalized: normalize(raw) }))
+  : []
+
+console.log(
+  `[cors] Allow-list (${ALLOW_LIST.length} entries): ${
+    ALLOW_LIST.length
+      ? ALLOW_LIST.map((e) => e.raw).join(', ')
+      : '(empty — all origins denied)'
+  }`
+)
 
 const corsConfig = defineConfig({
   enabled: true,
 
   /**
-   * Con credenciales, el navegador exige un origen concreto (no `*`).
-   * Devolvemos el mismo `Origin` cuando está permitido.
+   * Origin resolver — called on every request that carries an Origin header.
+   *
+   * Rules (in priority order):
+   *  1. CORS_ORIGIN is set → ONLY those origins are allowed; everything else
+   *     is denied with `false`. Never fall through to any default.
+   *  2. CORS_ORIGIN is not set → deny everything (fail-safe).
+   *
+   * Returning the original `origin` string (not `true`) is required for
+   * credentialed requests so the browser sees an exact-match header value.
    */
-  origin: (origin) => {
-    const explicit = parseExplicitOrigins()
-    if (explicit.length > 0) {
-      if (!origin) {
-        return true
-      }
-      return explicit.includes(origin) ? origin : false
+  origin: (requestOrigin) => {
+    // No Origin header (e.g. same-origin or server-to-server) — allow.
+    if (!requestOrigin) {
+      console.log('[cors] No Origin header — allowing request')
+      return true
     }
 
-    if (env.get('CORS_ALLOW_LAN') === true) {
-      if (!origin) {
-        return true
-      }
-      return isPrivateLanOrigin(origin) ? origin : false
+    if (ALLOW_LIST.length === 0) {
+      // CORS_ORIGIN was not configured — deny everything.
+      console.log(
+        `[cors] DENY ${requestOrigin} — CORS_ORIGIN not configured, denying all cross-origin requests`
+      )
+      return false
     }
 
-    if (app.inDev) {
-      if (!origin) {
-        return true
-      }
-      return origin
+    const normalizedRequest = normalize(requestOrigin)
+    const match = ALLOW_LIST.find((entry) => entry.normalized === normalizedRequest)
+
+    if (match) {
+      // Echo back the RAW value from the allow-list (preserves original casing).
+      console.log(`[cors] ALLOW ${requestOrigin} → echoing "${match.raw}"`)
+      return match.raw
     }
 
+    console.log(
+      `[cors] DENY ${requestOrigin} — not in allow-list [${ALLOW_LIST.map((e) => e.raw).join(', ')}]`
+    )
     return false
   },
 
