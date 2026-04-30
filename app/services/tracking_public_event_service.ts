@@ -219,6 +219,16 @@ class TrackingPublicEventService {
     return rows.map((row) => parseJson(row.payload))
   }
 
+  async getChangedInboundEventsSince(sinceIso: string, limit = 200) {
+    const sinceDt = parseMaybeDate(sinceIso)
+    const rows = await TrackingPublicEvent.query()
+      .where('direction', 'inbound')
+      .where('createdAt', '>=', sinceDt.toSQL({ includeOffset: false }) ?? undefined)
+      .orderBy('createdAt', 'asc')
+      .limit(Math.max(1, Math.min(limit, 1000)))
+    return rows.map((row) => parseJson(row.payload))
+  }
+
   async getChangedLocationsSince(sinceIso: string, limit = 200) {
     const sinceDt = parseMaybeDate(sinceIso)
     return TrackingOrderLocation.query()

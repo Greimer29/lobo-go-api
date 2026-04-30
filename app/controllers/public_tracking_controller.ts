@@ -96,6 +96,20 @@ export default class PublicTrackingController {
     })
   }
 
+  async changedEvents({ request, response }: HttpContext) {
+    const since = String(request.input('since', new Date(Date.now() - 5 * 60 * 1000).toISOString()))
+    const limit = Number(request.input('limit', 200))
+    const events = await trackingPublicEventService.getChangedInboundEventsSince(
+      since,
+      Number.isFinite(limit) ? limit : 200
+    )
+    return response.ok({
+      since,
+      count: events.length,
+      events,
+    })
+  }
+
   async metrics({ response }: HttpContext) {
     const [pending, failed, sent] = await Promise.all([
       TrackingPublicEvent.query()

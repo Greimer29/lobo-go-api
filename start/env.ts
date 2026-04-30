@@ -146,6 +146,13 @@ export default await Env.create(new URL('../', import.meta.url), {
   PUBLIC_TRACKING_SIGNING_SECRET: Env.schema.string.optional(),
   PUBLIC_TRACKING_ACCEPT_UNSIGNED: Env.schema.boolean.optional(),
   PUBLIC_TRACKING_WS_PORT: Env.schema.number.optional(),
+  PUBLIC_SYNC_OUTBOUND_ENABLED: Env.schema.boolean.optional(),
+  PUBLIC_SYNC_OUTBOUND_CRON: Env.schema.string.optional(),
+  PUBLIC_SYNC_OUTBOUND_LIMIT: Env.schema.number.optional(),
+  PUBLIC_SYNC_RECONCILE_ENABLED: Env.schema.boolean.optional(),
+  PUBLIC_SYNC_RECONCILE_CRON: Env.schema.string.optional(),
+  PUBLIC_SYNC_RECONCILE_LOOKBACK_SECONDS: Env.schema.number.optional(),
+  PUBLIC_SYNC_RECONCILE_LIMIT: Env.schema.number.optional(),
 
   // Geocoding opcional (si admin carga solo dirección para destino)
   GOOGLE_MAPS_GEOCODING_API_KEY: Env.schema.string.optional(),

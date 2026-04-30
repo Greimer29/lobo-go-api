@@ -15,5 +15,16 @@ if (cronExpr && cronExpr.length > 0) {
 
 schedule.skip(!autoSyncEnabled)
 
-scheduler.command('sync:public-events').everyMinute()
-scheduler.command('reconcile:public-tracking').everyFiveMinutes()
+const publicOutboundEnabled = env.get('PUBLIC_SYNC_OUTBOUND_ENABLED') !== false
+const publicOutboundCron = env.get('PUBLIC_SYNC_OUTBOUND_CRON')?.trim() || '*/20 * * * * *'
+const publicOutboundSchedule = scheduler.command('sync:public-events').withoutOverlapping(45_000)
+publicOutboundSchedule.cron(publicOutboundCron)
+publicOutboundSchedule.skip(!publicOutboundEnabled)
+
+const publicReconcileEnabled = env.get('PUBLIC_SYNC_RECONCILE_ENABLED') !== false
+const publicReconcileCron = env.get('PUBLIC_SYNC_RECONCILE_CRON')?.trim() || '*/45 * * * * *'
+const publicReconcileSchedule = scheduler
+  .command('reconcile:public-tracking')
+  .withoutOverlapping(60_000)
+publicReconcileSchedule.cron(publicReconcileCron)
+publicReconcileSchedule.skip(!publicReconcileEnabled)
