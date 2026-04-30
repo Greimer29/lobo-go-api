@@ -9,6 +9,7 @@ import {
   type TrackingEventType,
 } from '#services/tracking_public_event_contract'
 import trackingPublicRealtimeHubService from '#services/tracking_public_realtime_hub_service'
+import logger from '@adonisjs/core/services/logger'
 import { DateTime } from 'luxon'
 
 function toJson(event: OrderTrackingEvent) {
@@ -134,99 +135,150 @@ class TrackingPublicEventService {
       attemptCount: 1,
     })
 
-    await this.#projectToOrderState(event)
+    const projected = await this.#projectToOrderState(event)
+    if (!projected) {
+      logger.warn(
+        { eventId: event.eventId, eventType: event.eventType, numeroDocumento: doc },
+        'receiveInbound: projection to tracking_orders failed or was skipped'
+      )
+    }
+
     trackingPublicRealtimeHubService.publishOrderUpdate(
       doc,
       toRealtimeOrderUpdatePayload(event, {
         receivedAt: DateTime.now().toISO() ?? undefined,
       })
     )
-    return { duplicated: false, event: parseJson(created.payload) }
+    return { duplicated: false, projected, event: parseJson(created.payload) }
   }
 
-  async #projectToOrderState(event: OrderTrackingEvent) {
+  async #projectToOrderState(event: OrderTrackingEvent): Promise<boolean> {
     const doc = normalizeDoc(event.order.numeroDocumento)
-    if (!doc) return
-
-    let order = await TrackingOrder.query().where('numeroDocumento', doc).first()
-    if (!order) {
-      order = await TrackingOrder.create({
-        numeroDocumento: doc,
-        descripcionPedido: null,
-        montoTotal: 0,
-        estadoCodigo: null,
-        tipoFactura: null,
-        codigoUbicacion: null,
-        codigoVendedor: null,
-        originDepotCode: null,
-        originName: null,
-        originAddress: null,
-        originLat: null,
-        originLng: null,
-        destinationAddress: null,
-        destinationLat: null,
-        destinationLng: null,
-        destinationSource: null,
-        destinationMapsLink: null,
-        vehicleId: event.order.vehicleId ?? null,
-        claimedByUserId: null,
-        syncedAt: parseMaybeDate(event.order.syncedAt ?? event.emittedAt ?? null),
-        transportStartedAt: parseMaybeDate(event.order.transportStartedAt ?? null),
-        status: Number.isFinite(Number(event.order.status)) ? Number(event.order.status) : 0,
-        isSync: true,
-      })
+    if (!doc) {
+      logger.warn(
+        { eventId: event.eventId, eventType: event.eventType },
+        'projectToOrderState: skipped — empty numeroDocumento'
+      )
+      return false
     }
-    if (order && typeof event.order.status === 'number') {
-      const incoming = Number(event.order.status)
-      if (Number.isFinite(incoming) && incoming >= order.status) {
-        order.status = incoming
-        if (incoming === 1 && event.order.transportStartedAt) {
-          order.transportStartedAt = parseMaybeDate(event.order.transportStartedAt)
+
+    try {
+      let order = await TrackingOrder.query().where('numeroDocumento', doc).first()
+
+      if (!order) {
+        logger.info(
+          { eventId: event.eventId, eventType: event.eventType, numeroDocumento: doc },
+          'projectToOrderState: creating new TrackingOrder row'
+        )
+        order = await TrackingOrder.create({
+          numeroDocumento: doc,
+          descripcionPedido: null,
+          montoTotal: 0,
+          estadoCodigo: null,
+          tipoFactura: null,
+          codigoUbicacion: null,
+          codigoVendedor: null,
+          originDepotCode: null,
+          originName: null,
+          originAddress: null,
+          originLat: null,
+          originLng: null,
+          destinationAddress: null,
+          destinationLat: null,
+          destinationLng: null,
+          destinationSource: null,
+          destinationMapsLink: null,
+          vehicleId: event.order.vehicleId ?? null,
+          claimedByUserId: null,
+          syncedAt: parseMaybeDate(event.order.syncedAt ?? event.emittedAt ?? null),
+          transportStartedAt: parseMaybeDate(event.order.transportStartedAt ?? null),
+          status: Number.isFinite(Number(event.order.status)) ? Number(event.order.status) : 0,
+          isSync: true,
+        })
+        logger.info(
+          { eventId: event.eventId, eventType: event.eventType, numeroDocumento: doc, orderId: order.id },
+          'projectToOrderState: TrackingOrder created successfully'
+        )
+      } else {
+        logger.info(
+          { eventId: event.eventId, eventType: event.eventType, numeroDocumento: doc, orderId: order.id },
+          'projectToOrderState: updating existing TrackingOrder row'
+        )
+
+        // Always refresh syncedAt on order_synced events so the timestamp stays current
+        if (event.eventType === TRACKING_EVENT_TYPES.ORDER_SYNCED) {
+          order.syncedAt = parseMaybeDate(event.order.syncedAt ?? event.emittedAt ?? null)
+          order.isSync = true
         }
+
+        const incomingStatus = Number(event.order.status)
+        if (Number.isFinite(incomingStatus) && incomingStatus >= order.status) {
+          order.status = incomingStatus
+          if (incomingStatus === 1 && event.order.transportStartedAt) {
+            order.transportStartedAt = parseMaybeDate(event.order.transportStartedAt)
+          }
+        }
+
         await order.save()
+        logger.info(
+          { eventId: event.eventId, eventType: event.eventType, numeroDocumento: doc, orderId: order.id, status: order.status },
+          'projectToOrderState: TrackingOrder updated successfully'
+        )
       }
-    }
 
-    if (
-      event.eventType === TRACKING_EVENT_TYPES.ORDER_LOCATION &&
-      event.location &&
-      Number.isFinite(event.location.latitude) &&
-      Number.isFinite(event.location.longitude)
-    ) {
-      const previous = await TrackingOrderLocation.query().where('orderDocument', doc).first()
-      const recordedAt = parseMaybeDate(event.location.recordedAt ?? null)
-      const incomingRecordedAtMs = toMillis(recordedAt.toISO())
-      if (previous) {
-        const previousRecordedAtMs = toMillis(previous.recordedAt.toISO())
-        if (incomingRecordedAtMs > 0 && previousRecordedAtMs > 0 && incomingRecordedAtMs < previousRecordedAtMs) {
-          return
-        }
-        previous.latitude = Number(event.location.latitude)
-        previous.longitude = Number(event.location.longitude)
-        previous.accuracyMeters = event.location.accuracyMeters ?? null
-        previous.speedMps = event.location.speedMps ?? null
-        previous.provider = event.location.provider ?? event.source
-        previous.recordedAt = recordedAt
-        if (order) {
+      if (
+        event.eventType === TRACKING_EVENT_TYPES.ORDER_LOCATION &&
+        event.location &&
+        Number.isFinite(event.location.latitude) &&
+        Number.isFinite(event.location.longitude)
+      ) {
+        const previous = await TrackingOrderLocation.query().where('orderDocument', doc).first()
+        const recordedAt = parseMaybeDate(event.location.recordedAt ?? null)
+        const incomingRecordedAtMs = toMillis(recordedAt.toISO())
+        if (previous) {
+          const previousRecordedAtMs = toMillis(previous.recordedAt.toISO())
+          if (incomingRecordedAtMs > 0 && previousRecordedAtMs > 0 && incomingRecordedAtMs < previousRecordedAtMs) {
+            logger.info(
+              { eventId: event.eventId, numeroDocumento: doc },
+              'projectToOrderState: skipping stale ORDER_LOCATION — incoming recordedAt is older than stored'
+            )
+            return true
+          }
+          previous.latitude = Number(event.location.latitude)
+          previous.longitude = Number(event.location.longitude)
+          previous.accuracyMeters = event.location.accuracyMeters ?? null
+          previous.speedMps = event.location.speedMps ?? null
+          previous.provider = event.location.provider ?? event.source
+          previous.recordedAt = recordedAt
           previous.trackingOrderId = order.id
           previous.vehicleId = event.order.vehicleId ?? order.vehicleId
+          await previous.save()
         } else {
-          previous.vehicleId = event.order.vehicleId ?? previous.vehicleId
+          await TrackingOrderLocation.create({
+            orderDocument: doc,
+            trackingOrderId: order.id,
+            vehicleId: event.order.vehicleId ?? order.vehicleId ?? null,
+            latitude: Number(event.location.latitude),
+            longitude: Number(event.location.longitude),
+            accuracyMeters: event.location.accuracyMeters ?? null,
+            speedMps: event.location.speedMps ?? null,
+            provider: event.location.provider ?? event.source,
+            recordedAt,
+          })
         }
-        await previous.save()
-      } else {
-        await TrackingOrderLocation.create({
-          orderDocument: doc,
-          trackingOrderId: order?.id ?? null,
-          vehicleId: event.order.vehicleId ?? order?.vehicleId ?? null,
-          latitude: Number(event.location.latitude),
-          longitude: Number(event.location.longitude),
-          accuracyMeters: event.location.accuracyMeters ?? null,
-          speedMps: event.location.speedMps ?? null,
-          provider: event.location.provider ?? event.source,
-          recordedAt,
-        })
       }
+
+      logger.info(
+        { eventId: event.eventId, eventType: event.eventType, numeroDocumento: doc },
+        'projectToOrderState: projection complete'
+      )
+      return true
+    } catch (err) {
+      logger.error(
+        { err, eventId: event.eventId, eventType: event.eventType, numeroDocumento: doc },
+        'projectToOrderState: database error during projection to tracking_orders'
+      )
+      return false
     }
   }
 
