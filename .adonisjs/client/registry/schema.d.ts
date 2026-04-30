@@ -439,6 +439,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/public_tracking_controller').default['changedLocations']>>>
     }
   }
+  'public.public_tracking.changed_events': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/public/events/changed'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/public_tracking_controller').default['changedEvents']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/public_tracking_controller').default['changedEvents']>>>
+    }
+  }
   'public.public_tracking.metrics': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/public/metrics'

@@ -148,7 +148,34 @@ class TrackingPublicEventService {
     const doc = normalizeDoc(event.order.numeroDocumento)
     if (!doc) return
 
-    const order = await TrackingOrder.query().where('numeroDocumento', doc).first()
+    let order = await TrackingOrder.query().where('numeroDocumento', doc).first()
+    if (!order) {
+      order = await TrackingOrder.create({
+        numeroDocumento: doc,
+        descripcionPedido: null,
+        montoTotal: 0,
+        estadoCodigo: null,
+        tipoFactura: null,
+        codigoUbicacion: null,
+        codigoVendedor: null,
+        originDepotCode: null,
+        originName: null,
+        originAddress: null,
+        originLat: null,
+        originLng: null,
+        destinationAddress: null,
+        destinationLat: null,
+        destinationLng: null,
+        destinationSource: null,
+        destinationMapsLink: null,
+        vehicleId: event.order.vehicleId ?? null,
+        claimedByUserId: null,
+        syncedAt: parseMaybeDate(event.order.syncedAt ?? event.emittedAt ?? null),
+        transportStartedAt: parseMaybeDate(event.order.transportStartedAt ?? null),
+        status: Number.isFinite(Number(event.order.status)) ? Number(event.order.status) : 0,
+        isSync: true,
+      })
+    }
     if (order && typeof event.order.status === 'number') {
       const incoming = Number(event.order.status)
       if (Number.isFinite(incoming) && incoming >= order.status) {

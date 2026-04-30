@@ -2,8 +2,10 @@ import TrackingOrder from '#models/tracking_order'
 import TrackingOrderItem from '#models/tracking_order_item'
 import Vehicle from '#models/vehicle'
 import { geocodeDepotOrigin, isGeocodingConfigured } from '#services/google_geocoding_service'
+import trackingPublicEventService from '#services/tracking_public_event_service'
 import saDevService from '#services/sadev_service'
 import type { PedidoCompuesto, SaDevQueryFilters } from '#services/sadev_service'
+import { TRACKING_EVENT_TYPES, createOrderTrackingEvent } from '#services/tracking_public_event_contract'
 import db from '@adonisjs/lucid/services/db'
 import logger from '@adonisjs/core/services/logger'
 import { DateTime } from 'luxon'
@@ -18,6 +20,28 @@ export type SyncFromCorporateResult = {
 }
 
 class TrackingOrderSyncService {
+  private async enqueueOrderSyncedEvent(
+    pedido: PedidoCompuesto,
+    existing: TrackingOrder | null
+  ) {
+    const nextStatus = this.resolveNextStatus(pedido, existing)
+    const vehicleId = await this.resolveVehicleIdForUpsert(pedido, existing, nextStatus)
+    await trackingPublicEventService.enqueueOutbound(
+      createOrderTrackingEvent(TRACKING_EVENT_TYPES.ORDER_SYNCED, {
+        source: 'internal',
+        order: {
+          numeroDocumento: pedido.numeroDocumento,
+          status: nextStatus,
+          vehicleId,
+          syncedAt: DateTime.now().toISO(),
+        },
+        metadata: {
+          channel: 'sync:sadev',
+        },
+      })
+    )
+  }
+
   /**
    * SADEV.Status → tracking_orders.status
    * 0 = pendiente corporativo; 2 = entregado en ERP.
@@ -198,6 +222,14 @@ class TrackingOrderSyncService {
 
       if (existing && (await this.pedidoEquals(pedido, existing))) {
         unchanged++
+        try {
+          await this.enqueueOrderSyncedEvent(pedido, existing)
+        } catch (err) {
+          logger.warn(
+            { err, numeroDocumento: pedido.numeroDocumento },
+            'No se pudo encolar evento outbound ORDER_SYNCED'
+          )
+        }
         await this.pushHandoffToSadevIfEnabled(pedido)
         continue
       }
@@ -282,6 +314,15 @@ class TrackingOrderSyncService {
           )
         }
       })
+
+      try {
+        await this.enqueueOrderSyncedEvent(pedido, existing)
+      } catch (err) {
+        logger.warn(
+          { err, numeroDocumento: pedido.numeroDocumento },
+          'No se pudo encolar evento outbound ORDER_SYNCED'
+        )
+      }
 
       await this.pushHandoffToSadevIfEnabled(pedido)
       synced++

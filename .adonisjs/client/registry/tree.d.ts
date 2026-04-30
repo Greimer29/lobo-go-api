@@ -66,6 +66,7 @@ export interface ApiDefinition {
       latestLocation: typeof routes['public.public_tracking.latest_location']
       timeline: typeof routes['public.public_tracking.timeline']
       changedLocations: typeof routes['public.public_tracking.changed_locations']
+      changedEvents: typeof routes['public.public_tracking.changed_events']
       metrics: typeof routes['public.public_tracking.metrics']
     }
   }

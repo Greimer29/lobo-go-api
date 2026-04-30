@@ -222,6 +222,12 @@ const routes = {
     tokens: [{"old":"/api/v1/public/orders/locations/changed","type":0,"val":"api","end":""},{"old":"/api/v1/public/orders/locations/changed","type":0,"val":"v1","end":""},{"old":"/api/v1/public/orders/locations/changed","type":0,"val":"public","end":""},{"old":"/api/v1/public/orders/locations/changed","type":0,"val":"orders","end":""},{"old":"/api/v1/public/orders/locations/changed","type":0,"val":"locations","end":""},{"old":"/api/v1/public/orders/locations/changed","type":0,"val":"changed","end":""}],
     types: placeholder as Registry['public.public_tracking.changed_locations']['types'],
   },
+  'public.public_tracking.changed_events': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/public/events/changed',
+    tokens: [{"old":"/api/v1/public/events/changed","type":0,"val":"api","end":""},{"old":"/api/v1/public/events/changed","type":0,"val":"v1","end":""},{"old":"/api/v1/public/events/changed","type":0,"val":"public","end":""},{"old":"/api/v1/public/events/changed","type":0,"val":"events","end":""},{"old":"/api/v1/public/events/changed","type":0,"val":"changed","end":""}],
+    types: placeholder as Registry['public.public_tracking.changed_events']['types'],
+  },
   'public.public_tracking.metrics': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/public/metrics',

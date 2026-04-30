@@ -40,6 +40,7 @@ export type ScannedRoutes = {
     'public.public_tracking.latest_location': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }
     'public.public_tracking.timeline': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }
     'public.public_tracking.changed_locations': { paramsTuple?: []; params?: {} }
+    'public.public_tracking.changed_events': { paramsTuple?: []; params?: {} }
     'public.public_tracking.metrics': { paramsTuple?: []; params?: {} }
   }
   GET: {
@@ -59,6 +60,7 @@ export type ScannedRoutes = {
     'public.public_tracking.latest_location': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }
     'public.public_tracking.timeline': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }
     'public.public_tracking.changed_locations': { paramsTuple?: []; params?: {} }
+    'public.public_tracking.changed_events': { paramsTuple?: []; params?: {} }
     'public.public_tracking.metrics': { paramsTuple?: []; params?: {} }
   }
   HEAD: {
@@ -78,6 +80,7 @@ export type ScannedRoutes = {
     'public.public_tracking.latest_location': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }
     'public.public_tracking.timeline': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }
     'public.public_tracking.changed_locations': { paramsTuple?: []; params?: {} }
+    'public.public_tracking.changed_events': { paramsTuple?: []; params?: {} }
     'public.public_tracking.metrics': { paramsTuple?: []; params?: {} }
   }
   POST: {
