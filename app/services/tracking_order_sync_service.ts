@@ -5,6 +5,7 @@ import { geocodeDepotOrigin, isGeocodingConfigured } from '#services/google_geoc
 import trackingPublicEventService from '#services/tracking_public_event_service'
 import saDevService from '#services/sadev_service'
 import type { PedidoCompuesto, SaDevQueryFilters } from '#services/sadev_service'
+import { trackingOrderToSyncEventOrder } from '#services/tracking_order_sync_event_payload'
 import { TRACKING_EVENT_TYPES, createOrderTrackingEvent } from '#services/tracking_public_event_contract'
 import db from '@adonisjs/lucid/services/db'
 import logger from '@adonisjs/core/services/logger'
@@ -20,21 +21,17 @@ export type SyncFromCorporateResult = {
 }
 
 class TrackingOrderSyncService {
-  private async enqueueOrderSyncedEvent(
-    pedido: PedidoCompuesto,
-    existing: TrackingOrder | null
-  ) {
-    const nextStatus = this.resolveNextStatus(pedido, existing)
-    const vehicleId = await this.resolveVehicleIdForUpsert(pedido, existing, nextStatus)
+  private async enqueueOrderSyncedEvent(pedido: PedidoCompuesto) {
+    const fresh = await TrackingOrder.query()
+      .where('numeroDocumento', pedido.numeroDocumento)
+      .preload('items', (q) => q.orderBy('lineIndex', 'asc'))
+      .first()
+    if (!fresh) return
+
     await trackingPublicEventService.enqueueOutbound(
       createOrderTrackingEvent(TRACKING_EVENT_TYPES.ORDER_SYNCED, {
         source: 'internal',
-        order: {
-          numeroDocumento: pedido.numeroDocumento,
-          status: nextStatus,
-          vehicleId,
-          syncedAt: DateTime.now().toISO(),
-        },
+        order: trackingOrderToSyncEventOrder(fresh),
         metadata: {
           channel: 'sync:sadev',
         },
@@ -223,7 +220,7 @@ class TrackingOrderSyncService {
       if (existing && (await this.pedidoEquals(pedido, existing))) {
         unchanged++
         try {
-          await this.enqueueOrderSyncedEvent(pedido, existing)
+          await this.enqueueOrderSyncedEvent(pedido)
         } catch (err) {
           logger.warn(
             { err, numeroDocumento: pedido.numeroDocumento },
@@ -316,7 +313,7 @@ class TrackingOrderSyncService {
       })
 
       try {
-        await this.enqueueOrderSyncedEvent(pedido, existing)
+        await this.enqueueOrderSyncedEvent(pedido)
       } catch (err) {
         logger.warn(
           { err, numeroDocumento: pedido.numeroDocumento },

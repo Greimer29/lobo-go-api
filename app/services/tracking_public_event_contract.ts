@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { DateTime } from 'luxon'
 
-export const TRACKING_EVENT_SCHEMA_VERSION = 1
+export const TRACKING_EVENT_SCHEMA_VERSION = 2
 
 export const TRACKING_EVENT_TYPES = {
   ORDER_SYNCED: 'order_synced',
@@ -11,6 +11,16 @@ export const TRACKING_EVENT_TYPES = {
 } as const
 
 export type TrackingEventType = (typeof TRACKING_EVENT_TYPES)[keyof typeof TRACKING_EVENT_TYPES]
+
+/** Línea de factura incluida en `order_synced` (snapshot hacia API pública). */
+export type OrderTrackingEventItem = {
+  lineIndex: number
+  codigoItem?: string | null
+  descripcionItem?: string | null
+  cantidad: number
+  precio: number
+  codigoUnidadVenta?: string | null
+}
 
 export type OrderTrackingEvent = {
   schemaVersion?: number
@@ -26,6 +36,26 @@ export type OrderTrackingEvent = {
     syncedAt?: string | null
     transportStartedAt?: string | null
     completedAt?: string | null
+    descripcionPedido?: string | null
+    montoTotal?: number
+    estadoCodigo?: string | null
+    tipoFactura?: string | null
+    codigoUbicacion?: string | null
+    codigoVendedor?: string | null
+    originDepotCode?: string | null
+    originName?: string | null
+    originAddress?: string | null
+    originLat?: number | null
+    originLng?: number | null
+    destinationAddress?: string | null
+    destinationLat?: number | null
+    destinationLng?: number | null
+    destinationSource?: string | null
+    destinationMapsLink?: string | null
+    claimedByUserId?: number | null
+    isSync?: boolean
+    /** Si viene en el evento, reemplaza las líneas del pedido en destino (puede ser `[]`). */
+    items?: OrderTrackingEventItem[]
   }
   location?: {
     latitude: number

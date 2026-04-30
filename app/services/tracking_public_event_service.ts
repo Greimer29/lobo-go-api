@@ -1,14 +1,17 @@
 import TrackingOrder from '#models/tracking_order'
+import TrackingOrderItem from '#models/tracking_order_item'
 import TrackingOrderLocation from '#models/tracking_order_location'
 import TrackingPublicEvent, { TRACKING_PUBLIC_EVENT_STATUS } from '#models/tracking_public_event'
 import {
   TRACKING_EVENT_TYPES,
   type OrderTrackingEvent,
+  type OrderTrackingEventItem,
   createOrderTrackingEvent,
   toRealtimeOrderUpdatePayload,
   type TrackingEventType,
 } from '#services/tracking_public_event_contract'
 import trackingPublicRealtimeHubService from '#services/tracking_public_realtime_hub_service'
+import db from '@adonisjs/lucid/services/db'
 import { DateTime } from 'luxon'
 
 function toJson(event: OrderTrackingEvent) {
@@ -33,6 +36,144 @@ function toMillis(value: string | null | undefined) {
   if (!value) return 0
   const ms = Date.parse(value)
   return Number.isFinite(ms) ? ms : 0
+}
+
+function toFiniteNumberOrNull(value: unknown): number | null {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+function parseOptionalDateTime(v: string | null | undefined): DateTime | null {
+  if (!v) return null
+  const dt = DateTime.fromISO(v)
+  return dt.isValid ? dt : null
+}
+
+const ORDER_PATCH_KEYS = [
+  'descripcionPedido',
+  'montoTotal',
+  'estadoCodigo',
+  'tipoFactura',
+  'codigoUbicacion',
+  'codigoVendedor',
+  'originDepotCode',
+  'originName',
+  'originAddress',
+  'originLat',
+  'originLng',
+  'destinationAddress',
+  'destinationLat',
+  'destinationLng',
+  'destinationSource',
+  'destinationMapsLink',
+  'claimedByUserId',
+  'isSync',
+] as const
+
+type OrderPatchKey = (typeof ORDER_PATCH_KEYS)[number]
+
+function defaultOrderRow(doc: string) {
+  return {
+    numeroDocumento: doc,
+    descripcionPedido: null as string | null,
+    montoTotal: 0,
+    estadoCodigo: null as string | null,
+    tipoFactura: null as string | null,
+    codigoUbicacion: null as string | null,
+    codigoVendedor: null as string | null,
+    originDepotCode: null as string | null,
+    originName: null as string | null,
+    originAddress: null as string | null,
+    originLat: null as number | null,
+    originLng: null as number | null,
+    destinationAddress: null as string | null,
+    destinationLat: null as number | null,
+    destinationLng: null as number | null,
+    destinationSource: null as string | null,
+    destinationMapsLink: null as string | null,
+    vehicleId: null as number | null,
+    claimedByUserId: null as number | null,
+    syncedAt: null as DateTime | null,
+    transportStartedAt: null as DateTime | null,
+    status: 0,
+    isSync: true,
+  }
+}
+
+function applyOrderScalarPatches(order: TrackingOrder, payload: OrderTrackingEvent['order']) {
+  if ('vehicleId' in payload) {
+    order.vehicleId = toFiniteNumberOrNull(payload.vehicleId)
+  }
+  if ('syncedAt' in payload) {
+    order.syncedAt = payload.syncedAt
+      ? parseOptionalDateTime(payload.syncedAt)
+      : null
+  }
+  if ('transportStartedAt' in payload) {
+    if (payload.transportStartedAt == null || payload.transportStartedAt === '') {
+      order.transportStartedAt = null
+    } else {
+      const t = parseOptionalDateTime(payload.transportStartedAt)
+      if (t) order.transportStartedAt = t
+    }
+  }
+
+  for (const key of ORDER_PATCH_KEYS) {
+    if (!(key in payload)) continue
+    const v = payload[key as OrderPatchKey]
+    if (key === 'montoTotal') {
+      const n = toFiniteNumberOrNull(v)
+      if (n !== null) order.montoTotal = n
+      continue
+    }
+    if (
+      key === 'originLat' ||
+      key === 'originLng' ||
+      key === 'destinationLat' ||
+      key === 'destinationLng'
+    ) {
+      ;(order as unknown as Record<string, unknown>)[key] = toFiniteNumberOrNull(v)
+      continue
+    }
+    if (key === 'claimedByUserId') {
+      order.claimedByUserId = toFiniteNumberOrNull(v)
+      continue
+    }
+    if (key === 'isSync') {
+      if (typeof v === 'boolean') order.isSync = v
+      continue
+    }
+    ;(order as unknown as Record<string, unknown>)[key] = v === undefined ? null : v
+  }
+
+  if ('status' in payload) {
+    const incoming = Number(payload.status)
+    if (Number.isFinite(incoming)) {
+      order.status = Math.max(order.status, incoming)
+    }
+  }
+}
+
+async function replaceOrderItemsFromEvent(orderId: number, items: OrderTrackingEventItem[]) {
+  await db.transaction(async (trx) => {
+    await TrackingOrderItem.query({ client: trx }).where('trackingOrderId', orderId).delete()
+    const sorted = [...items].sort((a, b) => a.lineIndex - b.lineIndex)
+    for (let i = 0; i < sorted.length; i++) {
+      const row = sorted[i]
+      await TrackingOrderItem.create(
+        {
+          trackingOrderId: orderId,
+          lineIndex: Number.isFinite(Number(row.lineIndex)) ? Number(row.lineIndex) : i,
+          codigoItem: row.codigoItem ?? null,
+          descripcionItem: row.descripcionItem ?? null,
+          cantidad: toFiniteNumberOrNull(row.cantidad) ?? 0,
+          precio: toFiniteNumberOrNull(row.precio) ?? 0,
+          codigoUnidadVenta: row.codigoUnidadVenta ?? null,
+        },
+        { client: trx }
+      )
+    }
+  })
 }
 
 class TrackingPublicEventService {
@@ -148,43 +289,24 @@ class TrackingPublicEventService {
     const doc = normalizeDoc(event.order.numeroDocumento)
     if (!doc) return
 
+    const payload = event.order
     let order = await TrackingOrder.query().where('numeroDocumento', doc).first()
     if (!order) {
-      order = await TrackingOrder.create({
-        numeroDocumento: doc,
-        descripcionPedido: null,
-        montoTotal: 0,
-        estadoCodigo: null,
-        tipoFactura: null,
-        codigoUbicacion: null,
-        codigoVendedor: null,
-        originDepotCode: null,
-        originName: null,
-        originAddress: null,
-        originLat: null,
-        originLng: null,
-        destinationAddress: null,
-        destinationLat: null,
-        destinationLng: null,
-        destinationSource: null,
-        destinationMapsLink: null,
-        vehicleId: event.order.vehicleId ?? null,
-        claimedByUserId: null,
-        syncedAt: parseMaybeDate(event.order.syncedAt ?? event.emittedAt ?? null),
-        transportStartedAt: parseMaybeDate(event.order.transportStartedAt ?? null),
-        status: Number.isFinite(Number(event.order.status)) ? Number(event.order.status) : 0,
-        isSync: true,
-      })
-    }
-    if (order && typeof event.order.status === 'number') {
-      const incoming = Number(event.order.status)
-      if (Number.isFinite(incoming) && incoming >= order.status) {
-        order.status = incoming
-        if (incoming === 1 && event.order.transportStartedAt) {
-          order.transportStartedAt = parseMaybeDate(event.order.transportStartedAt)
-        }
-        await order.save()
+      const base = defaultOrderRow(doc)
+      if (!('syncedAt' in payload)) {
+        base.syncedAt = parseMaybeDate(event.emittedAt)
       }
+      if (!('transportStartedAt' in payload)) {
+        base.transportStartedAt = null
+      }
+      order = await TrackingOrder.create(base)
+    }
+
+    applyOrderScalarPatches(order, payload)
+    await order.save()
+
+    if ('items' in payload && Array.isArray(payload.items)) {
+      await replaceOrderItemsFromEvent(order.id, payload.items)
     }
 
     if (

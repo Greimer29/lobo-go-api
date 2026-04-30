@@ -4,6 +4,7 @@ import TrackingOrderObservation from '#models/tracking_order_observation'
 import type User from '#models/user'
 import Vehicle, { VEHICLE_STATUSES } from '#models/vehicle'
 import trackingOrderCompletionService from '#services/tracking_order_completion_service'
+import { trackingOrderToSyncEventOrder } from '#services/tracking_order_sync_event_payload'
 import {
   TRACKING_EVENT_TYPES,
   createOrderTrackingEvent,
@@ -164,17 +165,15 @@ export default class TrackingOrdersController {
 
     const numeroDocumento = String(request.input('numeroD') ?? '').trim()
     if (numeroDocumento) {
-      const order = await TrackingOrder.query().where('numeroDocumento', numeroDocumento).first()
+      const order = await TrackingOrder.query()
+        .where('numeroDocumento', numeroDocumento)
+        .preload('items', (q) => q.orderBy('lineIndex', 'asc'))
+        .first()
       if (order) {
         await trackingPublicEventService.enqueueOutbound(
           createOrderTrackingEvent(TRACKING_EVENT_TYPES.ORDER_SYNCED, {
             source: 'internal',
-            order: {
-              numeroDocumento: order.numeroDocumento,
-              status: order.status,
-              vehicleId: order.vehicleId,
-              syncedAt: order.syncedAt?.toISO() ?? null,
-            },
+            order: trackingOrderToSyncEventOrder(order),
             location: null,
             metadata: { triggeredByUserId: user.id },
           })
