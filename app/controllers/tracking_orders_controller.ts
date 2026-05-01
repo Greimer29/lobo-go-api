@@ -77,6 +77,22 @@ async function geocodePlaceNameFromMapUrl(mapsLink: string): Promise<{ lat: numb
 const PLACE_URL_GEO_DISAGREE_METERS = 220
 
 /**
+ * Algunos registros legacy pueden traer FKs en 0 (inválidas para MySQL FK).
+ * Antes de persistir cambios no relacionados (p. ej. destino), saneamos a null.
+ */
+function normalizeInvalidForeignKeys(order: TrackingOrder) {
+  const vehicleId = Number(order.vehicleId)
+  if (!Number.isFinite(vehicleId) || vehicleId <= 0) {
+    order.vehicleId = null
+  }
+
+  const claimedByUserId = Number(order.claimedByUserId)
+  if (!Number.isFinite(claimedByUserId) || claimedByUserId <= 0) {
+    order.claimedByUserId = null
+  }
+}
+
+/**
  * Publica el estado actual de un pedido como `order_synced` rico en ambos sentidos:
  * - `receiveInbound`: queda aplicado e indexable por este lado (visible en timeline y en /events/changed).
  * - `enqueueOutbound`: se encola para empujar al otro lado por HTTP.
@@ -369,6 +385,7 @@ export default class TrackingOrdersController {
     order.destinationLng = destinationLng
     order.destinationSource = destinationSource
     order.destinationMapsLink = mapsLink
+    normalizeInvalidForeignKeys(order)
     await order.save()
 
     await emitOrderSyncedFullSnapshot(order.numeroDocumento, {
@@ -878,6 +895,7 @@ export default class TrackingOrdersController {
             order.destinationLat = fromMaps.point.lat
             order.destinationLng = fromMaps.point.lng
             order.destinationSource = fromMaps.source ?? 'admin_link'
+            normalizeInvalidForeignKeys(order)
             await order.save()
           }
         }
@@ -889,6 +907,7 @@ export default class TrackingOrdersController {
         order.destinationLat = geocoded.lat
         order.destinationLng = geocoded.lng
         order.destinationSource = geocoded.source ?? 'admin_address'
+        normalizeInvalidForeignKeys(order)
         await order.save()
       }
     }

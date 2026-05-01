@@ -228,6 +228,12 @@ const routes = {
     tokens: [{"old":"/api/v1/public/events/changed","type":0,"val":"api","end":""},{"old":"/api/v1/public/events/changed","type":0,"val":"v1","end":""},{"old":"/api/v1/public/events/changed","type":0,"val":"public","end":""},{"old":"/api/v1/public/events/changed","type":0,"val":"events","end":""},{"old":"/api/v1/public/events/changed","type":0,"val":"changed","end":""}],
     types: placeholder as Registry['public.public_tracking.changed_events']['types'],
   },
+  'public.public_tracking.changed_outbound_events': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/public/events/changed-outbound',
+    tokens: [{"old":"/api/v1/public/events/changed-outbound","type":0,"val":"api","end":""},{"old":"/api/v1/public/events/changed-outbound","type":0,"val":"v1","end":""},{"old":"/api/v1/public/events/changed-outbound","type":0,"val":"public","end":""},{"old":"/api/v1/public/events/changed-outbound","type":0,"val":"events","end":""},{"old":"/api/v1/public/events/changed-outbound","type":0,"val":"changed-outbound","end":""}],
+    types: placeholder as Registry['public.public_tracking.changed_outbound_events']['types'],
+  },
   'public.public_tracking.metrics': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/public/metrics',
