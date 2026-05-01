@@ -1,11 +1,13 @@
 import TrackingOrder from '#models/tracking_order'
 import TrackingOrderItem from '#models/tracking_order_item'
 import TrackingOrderLocation from '#models/tracking_order_location'
+import TrackingOrderObservation from '#models/tracking_order_observation'
 import TrackingPublicEvent, { TRACKING_PUBLIC_EVENT_STATUS } from '#models/tracking_public_event'
 import {
   TRACKING_EVENT_TYPES,
   type OrderTrackingEvent,
   type OrderTrackingEventItem,
+  type OrderTrackingEventObservation,
   createOrderTrackingEvent,
   toRealtimeOrderUpdatePayload,
   type TrackingEventType,
@@ -70,6 +72,7 @@ const ORDER_PATCH_KEYS = [
   'destinationMapsLink',
   'claimedByUserId',
   'isSync',
+  'adminReaction',
 ] as const
 
 type OrderPatchKey = (typeof ORDER_PATCH_KEYS)[number]
@@ -117,6 +120,14 @@ function applyOrderScalarPatches(order: TrackingOrder, payload: OrderTrackingEve
     } else {
       const t = parseOptionalDateTime(payload.transportStartedAt)
       if (t) order.transportStartedAt = t
+    }
+  }
+  if ('adminFeedbackAt' in payload) {
+    if (payload.adminFeedbackAt == null || payload.adminFeedbackAt === '') {
+      order.adminFeedbackAt = null
+    } else {
+      const t = parseOptionalDateTime(payload.adminFeedbackAt)
+      if (t) order.adminFeedbackAt = t
     }
   }
 
@@ -174,6 +185,41 @@ async function replaceOrderItemsFromEvent(orderId: number, items: OrderTrackingE
         },
         { client: trx }
       )
+    }
+  })
+}
+
+async function replaceOrderObservationsFromEvent(
+  orderId: number,
+  observations: OrderTrackingEventObservation[]
+) {
+  await db.transaction(async (trx) => {
+    await TrackingOrderObservation.query({ client: trx })
+      .where('trackingOrderId', orderId)
+      .delete()
+    const sorted = [...observations].sort((a, b) => {
+      const aMs = Date.parse(a.createdAt ?? '') || 0
+      const bMs = Date.parse(b.createdAt ?? '') || 0
+      return aMs - bMs
+    })
+    for (const row of sorted) {
+      const body = String(row.body ?? '').trim()
+      if (!body) continue
+      const createdAt = parseOptionalDateTime(row.createdAt ?? undefined)
+      const updatedAt = parseOptionalDateTime(row.updatedAt ?? undefined)
+      const newRow = await TrackingOrderObservation.create(
+        {
+          trackingOrderId: orderId,
+          userId: toFiniteNumberOrNull(row.userId),
+          body,
+        },
+        { client: trx }
+      )
+      if (createdAt) newRow.createdAt = createdAt
+      if (updatedAt) newRow.updatedAt = updatedAt
+      if (createdAt || updatedAt) {
+        await newRow.save()
+      }
     }
   })
 }
@@ -329,6 +375,10 @@ class TrackingPublicEventService {
       await replaceOrderItemsFromEvent(order.id, payload.items)
     }
 
+    if ('observations' in payload && Array.isArray(payload.observations)) {
+      await replaceOrderObservationsFromEvent(order.id, payload.observations)
+    }
+
     if (
       event.eventType === TRACKING_EVENT_TYPES.ORDER_LOCATION &&
       event.location &&
@@ -392,6 +442,20 @@ class TrackingPublicEventService {
     const sinceDt = parseMaybeDate(sinceIso)
     const rows = await TrackingPublicEvent.query()
       .where('direction', 'inbound')
+      .where('createdAt', '>=', sinceDt.toSQL({ includeOffset: false }) ?? undefined)
+      .orderBy('createdAt', 'asc')
+      .limit(Math.max(1, Math.min(limit, 1000)))
+    return rows.map((row) => parseJson(row.payload))
+  }
+
+  /**
+   * Eventos que este lado generó (p. ej. mutaciones de móviles en Railway) y están en su cola outbound.
+   * El otro lado los consume por pull para convergencia bidireccional aun sin conexión directa.
+   */
+  async getChangedOutboundEventsSince(sinceIso: string, limit = 200) {
+    const sinceDt = parseMaybeDate(sinceIso)
+    const rows = await TrackingPublicEvent.query()
+      .where('direction', 'outbound')
       .where('createdAt', '>=', sinceDt.toSQL({ includeOffset: false }) ?? undefined)
       .orderBy('createdAt', 'asc')
       .limit(Math.max(1, Math.min(limit, 1000)))

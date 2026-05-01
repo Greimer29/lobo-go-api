@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { DateTime } from 'luxon'
 
-export const TRACKING_EVENT_SCHEMA_VERSION = 2
+export const TRACKING_EVENT_SCHEMA_VERSION = 3
 
 export const TRACKING_EVENT_TYPES = {
   ORDER_SYNCED: 'order_synced',
@@ -20,6 +20,19 @@ export type OrderTrackingEventItem = {
   cantidad: number
   precio: number
   codigoUnidadVenta?: string | null
+}
+
+/**
+ * Observación del traslado incluida en `order_synced`. Si se envía el array,
+ * se reemplaza la lista completa en destino (fuente de verdad = emisor).
+ */
+export type OrderTrackingEventObservation = {
+  externalId?: number | null
+  userId?: number | null
+  userFullName?: string | null
+  body: string
+  createdAt?: string | null
+  updatedAt?: string | null
 }
 
 export type OrderTrackingEvent = {
@@ -54,8 +67,12 @@ export type OrderTrackingEvent = {
     destinationMapsLink?: string | null
     claimedByUserId?: number | null
     isSync?: boolean
+    adminReaction?: string | null
+    adminFeedbackAt?: string | null
     /** Si viene en el evento, reemplaza las líneas del pedido en destino (puede ser `[]`). */
     items?: OrderTrackingEventItem[]
+    /** Si viene en el evento, reemplaza las observaciones del traslado en destino. */
+    observations?: OrderTrackingEventObservation[]
   }
   location?: {
     latitude: number

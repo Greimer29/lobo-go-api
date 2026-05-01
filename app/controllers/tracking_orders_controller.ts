@@ -4,7 +4,10 @@ import TrackingOrderObservation from '#models/tracking_order_observation'
 import type User from '#models/user'
 import Vehicle, { VEHICLE_STATUSES } from '#models/vehicle'
 import trackingOrderCompletionService from '#services/tracking_order_completion_service'
-import { trackingOrderToSyncEventOrder } from '#services/tracking_order_sync_event_payload'
+import {
+  loadTrackingOrderForSnapshot,
+  trackingOrderToSyncEventOrder,
+} from '#services/tracking_order_sync_event_payload'
 import {
   TRACKING_EVENT_TYPES,
   createOrderTrackingEvent,
@@ -72,6 +75,32 @@ async function geocodePlaceNameFromMapUrl(mapsLink: string): Promise<{ lat: numb
 
 /** Metros: si el par !3d/@ dista de la ficha, preferimos geocodificación del nombre. */
 const PLACE_URL_GEO_DISAGREE_METERS = 220
+
+/**
+ * Publica el estado actual de un pedido como `order_synced` rico en ambos sentidos:
+ * - `receiveInbound`: queda aplicado e indexable por este lado (visible en timeline y en /events/changed).
+ * - `enqueueOutbound`: se encola para empujar al otro lado por HTTP.
+ *
+ * Así cualquier mutación (admin local o móvil contra la pública) se vuelve
+ * observable y replicable por el otro extremo sin intervención manual.
+ */
+async function emitOrderSyncedFullSnapshot(
+  numeroDocumento: string,
+  metadata?: Record<string, unknown>
+) {
+  const fresh = await loadTrackingOrderForSnapshot(numeroDocumento)
+  if (!fresh) return
+
+  const event = createOrderTrackingEvent(TRACKING_EVENT_TYPES.ORDER_SYNCED, {
+    source: 'internal',
+    order: trackingOrderToSyncEventOrder(fresh),
+    location: null,
+    metadata: metadata ?? {},
+  })
+
+  await trackingPublicEventService.receiveInbound(event)
+  await trackingPublicEventService.enqueueOutbound(event)
+}
 
 type LinkDest = {
   point: { lat: number; lng: number } | null
@@ -278,6 +307,11 @@ export default class TrackingOrdersController {
     order.adminFeedbackAt = DateTime.now()
     await order.save()
 
+    await emitOrderSyncedFullSnapshot(order.numeroDocumento, {
+      channel: 'admin:update-transport-reaction',
+      triggeredByUserId: user.id,
+    })
+
     return response.ok({
       message: 'Reacción actualizada',
       numeroDocumento: order.numeroDocumento,
@@ -336,6 +370,11 @@ export default class TrackingOrdersController {
     order.destinationSource = destinationSource
     order.destinationMapsLink = mapsLink
     await order.save()
+
+    await emitOrderSyncedFullSnapshot(order.numeroDocumento, {
+      channel: 'admin:update-destination',
+      triggeredByUserId: user.id,
+    })
 
     return response.ok({
       message: 'Destino del pedido actualizado',
@@ -414,6 +453,12 @@ export default class TrackingOrdersController {
     })
     await created.load('user')
 
+    await emitOrderSyncedFullSnapshot(order.numeroDocumento, {
+      channel: 'admin:store-transport-observation',
+      triggeredByUserId: user.id,
+      observationId: created.id,
+    })
+
     return response.created({
       observation: {
         id: created.id,
@@ -451,7 +496,16 @@ export default class TrackingOrdersController {
       return response.notFound({ message: 'Observación no encontrada' })
     }
 
+    const parentOrder = await TrackingOrder.find(obs.trackingOrderId)
     await obs.delete()
+
+    if (parentOrder) {
+      await emitOrderSyncedFullSnapshot(parentOrder.numeroDocumento, {
+        channel: 'admin:destroy-transport-observation',
+        triggeredByUserId: user.id,
+        observationId: id,
+      })
+    }
     return response.ok({ message: 'Observación eliminada', id })
   }
 
@@ -513,19 +567,23 @@ export default class TrackingOrdersController {
     vehicle.operationalStatus = VEHICLE_STATUSES.EN_ROUTE
     await vehicle.save()
 
-    await trackingPublicEventService.enqueueOutbound(
-      createOrderTrackingEvent(TRACKING_EVENT_TYPES.ORDER_CLAIMED, {
-        source: 'internal',
-        order: {
-          numeroDocumento: order.numeroDocumento,
-          status: order.status,
-          vehicleId: order.vehicleId,
-          transportStartedAt: order.transportStartedAt?.toISO() ?? null,
-        },
-        location: null,
-        metadata: { claimedByUserId: user.id },
-      })
-    )
+    const claimEvent = createOrderTrackingEvent(TRACKING_EVENT_TYPES.ORDER_CLAIMED, {
+      source: 'internal',
+      order: {
+        numeroDocumento: order.numeroDocumento,
+        status: order.status,
+        vehicleId: order.vehicleId,
+        transportStartedAt: order.transportStartedAt?.toISO() ?? null,
+      },
+      location: null,
+      metadata: { claimedByUserId: user.id },
+    })
+    await trackingPublicEventService.receiveInbound(claimEvent)
+    await trackingPublicEventService.enqueueOutbound(claimEvent)
+    await emitOrderSyncedFullSnapshot(order.numeroDocumento, {
+      channel: 'driver:claim',
+      claimedByUserId: user.id,
+    })
 
     return response.ok({
       message: 'Pedido asignado a tu unidad y marcado en proceso',
@@ -588,22 +646,26 @@ export default class TrackingOrdersController {
 
     const order = await TrackingOrder.query().where('numeroDocumento', trimmed).first()
     if (order) {
-      await trackingPublicEventService.enqueueOutbound(
-        createOrderTrackingEvent(TRACKING_EVENT_TYPES.ORDER_COMPLETED, {
-          source: 'internal',
-          order: {
-            numeroDocumento: order.numeroDocumento,
-            status: order.status,
-            vehicleId: order.vehicleId,
-            completedAt: order.updatedAt?.toISO() ?? null,
-          },
-          location: null,
-          metadata: {
-            completedByUserId: user.id,
-            corporateRowsAffected: result.corporateRowsAffected,
-          },
-        })
-      )
+      const completeEvent = createOrderTrackingEvent(TRACKING_EVENT_TYPES.ORDER_COMPLETED, {
+        source: 'internal',
+        order: {
+          numeroDocumento: order.numeroDocumento,
+          status: order.status,
+          vehicleId: order.vehicleId,
+          completedAt: order.updatedAt?.toISO() ?? null,
+        },
+        location: null,
+        metadata: {
+          completedByUserId: user.id,
+          corporateRowsAffected: result.corporateRowsAffected,
+        },
+      })
+      await trackingPublicEventService.receiveInbound(completeEvent)
+      await trackingPublicEventService.enqueueOutbound(completeEvent)
+      await emitOrderSyncedFullSnapshot(order.numeroDocumento, {
+        channel: 'driver:complete',
+        completedByUserId: user.id,
+      })
     }
 
     return response.ok({

@@ -116,6 +116,24 @@ export default class PublicTrackingController {
     })
   }
 
+  /**
+   * Expone los eventos generados por este lado (direction='outbound') para que el otro extremo
+   * los pulle y aplique. Habilita reconciliación Railway→Local cuando Railway no puede alcanzar local.
+   */
+  async changedOutboundEvents({ request, response }: HttpContext) {
+    const since = String(request.input('since', new Date(Date.now() - 5 * 60 * 1000).toISOString()))
+    const limit = Number(request.input('limit', 200))
+    const events = await trackingPublicEventService.getChangedOutboundEventsSince(
+      since,
+      Number.isFinite(limit) ? limit : 200
+    )
+    return response.ok({
+      since,
+      count: events.length,
+      events,
+    })
+  }
+
   async metrics({ response }: HttpContext) {
     const [pending, failed, sent] = await Promise.all([
       TrackingPublicEvent.query()
