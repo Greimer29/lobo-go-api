@@ -24,14 +24,20 @@ export default class PublicTrackingController {
       return response.unauthorized({ message: verify.reason })
     }
 
-    const body = request.body() as Partial<OrderTrackingEvent>
-    if (!body?.eventId || !body?.eventType || !body?.order?.numeroDocumento) {
+    let event: OrderTrackingEvent
+    try {
+      event = JSON.parse(payloadRaw) as OrderTrackingEvent
+    } catch {
+      return response.badRequest({ message: 'JSON inválido en el cuerpo de la petición' })
+    }
+
+    if (!event?.eventId || !event?.eventType || !event?.order?.numeroDocumento) {
       return response.badRequest({
         message: 'Payload inválido: se requiere eventId, eventType y order.numeroDocumento',
       })
     }
 
-    const result = await trackingPublicEventService.receiveInbound(body as OrderTrackingEvent)
+    const result = await trackingPublicEventService.receiveInbound(event)
     if (result.duplicated) {
       return response.ok({ duplicated: true, message: 'Evento ya procesado', event: result.event })
     }
