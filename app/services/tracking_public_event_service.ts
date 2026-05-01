@@ -43,6 +43,8 @@ function toMillis(value: string | null | undefined) {
 }
 
 function toFiniteNumberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined) return null
+  if (typeof value === 'string' && value.trim() === '') return null
   const n = Number(value)
   return Number.isFinite(n) ? n : null
 }
@@ -107,7 +109,8 @@ function defaultOrderRow(doc: string) {
 
 function applyOrderScalarPatches(order: TrackingOrder, payload: OrderTrackingEvent['order']) {
   if ('vehicleId' in payload) {
-    order.vehicleId = toFiniteNumberOrNull(payload.vehicleId)
+    const vid = toFiniteNumberOrNull(payload.vehicleId)
+    order.vehicleId = vid !== null && vid > 0 ? vid : null
   }
   if ('syncedAt' in payload) {
     order.syncedAt = payload.syncedAt
@@ -149,7 +152,8 @@ function applyOrderScalarPatches(order: TrackingOrder, payload: OrderTrackingEve
       continue
     }
     if (key === 'claimedByUserId') {
-      order.claimedByUserId = toFiniteNumberOrNull(v)
+      const uid = toFiniteNumberOrNull(v)
+      order.claimedByUserId = uid !== null && uid > 0 ? uid : null
       continue
     }
     if (key === 'isSync') {
