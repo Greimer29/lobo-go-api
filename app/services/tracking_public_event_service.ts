@@ -12,6 +12,8 @@ import {
 } from '#services/tracking_public_event_contract'
 import trackingPublicRealtimeHubService from '#services/tracking_public_realtime_hub_service'
 import db from '@adonisjs/lucid/services/db'
+import logger from '@adonisjs/core/services/logger'
+import env from '#start/env'
 import { DateTime } from 'luxon'
 
 function toJson(event: OrderTrackingEvent) {
@@ -191,7 +193,7 @@ class TrackingPublicEventService {
   async enqueueOutbound(event: OrderTrackingEvent) {
     const doc = normalizeDoc(event.order.numeroDocumento)
     const rowEventId = await this.#resolveOutboundRowEventId(event.eventId)
-    return TrackingPublicEvent.create({
+    const row = await TrackingPublicEvent.create({
       eventId: rowEventId,
       direction: 'outbound',
       eventType: event.eventType,
@@ -199,6 +201,24 @@ class TrackingPublicEventService {
       payload: toJson(event),
       status: TRACKING_PUBLIC_EVENT_STATUS.PENDING,
     })
+
+    const baseUrl = env.get('PUBLIC_TRACKING_BASE_URL')?.trim()
+    const outboundOff = env.get('PUBLIC_SYNC_OUTBOUND_ENABLED') === false
+    const immediateOff = env.get('PUBLIC_SYNC_IMMEDIATE_FLUSH') === false
+    if (baseUrl && !outboundOff && !immediateOff) {
+      const fromEnv =
+        env.get('PUBLIC_SYNC_IMMEDIATE_FLUSH_LIMIT') ?? env.get('PUBLIC_SYNC_OUTBOUND_LIMIT') ?? 50
+      const limit = Number.isFinite(Number(fromEnv))
+        ? Math.min(500, Math.max(1, Number(fromEnv)))
+        : 50
+      void import('#services/tracking_public_sync_service')
+        .then(({ default: sync }) => sync.flushOutbound(limit))
+        .catch((err) => {
+          logger.warn({ err }, 'Flush outbound tras enqueue falló (se reintentará con el scheduler)')
+        })
+    }
+
+    return row
   }
 
   async createAndEnqueueOutbound(

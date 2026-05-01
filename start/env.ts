@@ -147,6 +147,13 @@ export default await Env.create(new URL('../', import.meta.url), {
   PUBLIC_TRACKING_ACCEPT_UNSIGNED: Env.schema.boolean.optional(),
   PUBLIC_TRACKING_WS_PORT: Env.schema.number.optional(),
   PUBLIC_SYNC_OUTBOUND_ENABLED: Env.schema.boolean.optional(),
+  /**
+   * Si no es false: tras encolar un evento outbound, se intenta enviar a PUBLIC_TRACKING_BASE_URL en segundo plano
+   * (no dependes solo de `scheduler:run`). Desactiva si solo quieres el cron del scheduler.
+   */
+  PUBLIC_SYNC_IMMEDIATE_FLUSH: Env.schema.boolean.optional(),
+  /** Lote máximo por ese flush inmediato (por defecto PUBLIC_SYNC_OUTBOUND_LIMIT o 50). */
+  PUBLIC_SYNC_IMMEDIATE_FLUSH_LIMIT: Env.schema.number.optional(),
   PUBLIC_SYNC_OUTBOUND_CRON: Env.schema.string.optional(),
   PUBLIC_SYNC_OUTBOUND_LIMIT: Env.schema.number.optional(),
   PUBLIC_SYNC_RECONCILE_ENABLED: Env.schema.boolean.optional(),
