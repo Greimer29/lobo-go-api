@@ -29,6 +29,8 @@ export default class RepushFullPublic extends BaseCommand {
     const vehicles = await Vehicle.query().orderBy('id', 'asc')
     const shifts = await DriverShift.query().orderBy('id', 'asc')
     const expenses = await VehicleExpense.query().orderBy('id', 'asc')
+    const usersById = new Map(users.map((u) => [u.id, u]))
+    const vehiclesById = new Map(vehicles.map((v) => [v.id, v]))
     const orders = await TrackingOrder.query()
       .preload('items', (q) => q.orderBy('lineIndex', 'asc'))
       .preload('observations', (q) => q.orderBy('createdAt', 'asc'))
@@ -84,7 +86,9 @@ export default class RepushFullPublic extends BaseCommand {
             shift: {
               id: shift.id,
               userId: shift.userId,
+              userEmail: usersById.get(shift.userId)?.email ?? null,
               vehicleId: shift.vehicleId,
+              vehicleCode: vehiclesById.get(shift.vehicleId)?.code ?? null,
               startedAt: shift.startedAt.toISO(),
               endedAt: shift.endedAt?.toISO() ?? null,
               createdAt: shift.createdAt.toISO(),
@@ -103,6 +107,7 @@ export default class RepushFullPublic extends BaseCommand {
           expense: {
             id: expense.id,
             vehicleId: expense.vehicleId,
+            vehicleCode: vehiclesById.get(expense.vehicleId)?.code ?? null,
             expenseType: expense.expenseType,
             amount: Number(expense.amount ?? 0),
             currency: expense.currency,

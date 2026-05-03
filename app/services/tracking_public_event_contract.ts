@@ -117,7 +117,9 @@ export type OrderTrackingEvent = {
   shift?: {
     id?: number | null
     userId?: number | null
+    userEmail?: string | null
     vehicleId?: number | null
+    vehicleCode?: string | null
     startedAt?: string | null
     endedAt?: string | null
     createdAt?: string | null
@@ -126,6 +128,7 @@ export type OrderTrackingEvent = {
   expense?: {
     id?: number | null
     vehicleId?: number | null
+    vehicleCode?: string | null
     expenseType?: string | null
     amount?: number | null
     currency?: string | null

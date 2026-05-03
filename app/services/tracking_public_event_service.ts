@@ -41,6 +41,10 @@ function normalizeDoc(numeroDocumento: string) {
   return String(numeroDocumento || '').trim()
 }
 
+function normalizeCode(value: unknown) {
+  return String(value ?? '').trim().toLowerCase()
+}
+
 function toMillis(value: string | null | undefined) {
   if (!value) return 0
   const ms = Date.parse(value)
@@ -245,6 +249,33 @@ function lwwShouldApply(incomingIso: string | null | undefined, localIso: string
   return incomingMs >= localMs
 }
 
+async function resolveLocalVehicleId(
+  incomingVehicleId: unknown,
+  incomingVehicleCode: string | null | undefined
+) {
+  const codeNorm = normalizeCode(incomingVehicleCode)
+  if (codeNorm) {
+    const byCode = await Vehicle.query().whereRaw('LOWER(code) = ?', [codeNorm]).first()
+    if (byCode) return byCode.id
+  }
+  const numericVehicleId = toFiniteNumberOrNull(incomingVehicleId)
+  if (numericVehicleId === null) return null
+  const byId = await Vehicle.find(numericVehicleId)
+  return byId?.id ?? null
+}
+
+async function resolveLocalUserId(incomingUserId: unknown, incomingUserEmail: string | null | undefined) {
+  const emailNorm = String(incomingUserEmail ?? '').trim().toLowerCase()
+  if (emailNorm) {
+    const byEmail = await User.query().whereRaw('LOWER(email) = ?', [emailNorm]).first()
+    if (byEmail) return byEmail.id
+  }
+  const numericUserId = toFiniteNumberOrNull(incomingUserId)
+  if (numericUserId === null) return null
+  const byId = await User.find(numericUserId)
+  return byId?.id ?? null
+}
+
 async function projectUserEvent(event: OrderTrackingEvent) {
   const payload = event.user
   if (!payload) return
@@ -252,9 +283,9 @@ async function projectUserEvent(event: OrderTrackingEvent) {
   const incomingEmail = payload.email ? String(payload.email).trim().toLowerCase() : null
   if (!incomingId && !incomingEmail) return
 
-  let user = incomingId ? await User.find(incomingId) : null
-  if (!user && incomingEmail) {
-    user = await User.findBy('email', incomingEmail)
+  let user = incomingEmail ? await User.findBy('email', incomingEmail) : null
+  if (!user && incomingId) {
+    user = await User.find(incomingId)
   }
 
   if (event.eventType === TRACKING_EVENT_TYPES.USER_DELETED) {
@@ -290,7 +321,6 @@ async function projectUserEvent(event: OrderTrackingEvent) {
 
   if (!incomingEmail || !payload.role || !payload.approvalStatus) return
   const created = await User.create({
-    id: incomingId ?? undefined,
     fullName: payload.fullName ?? incomingEmail,
     email: incomingEmail,
     password: payload.passwordHash ?? `sync:${incomingEmail}`,
@@ -312,11 +342,22 @@ async function projectVehicleEvent(event: OrderTrackingEvent) {
   if (!payload) return
   const incomingId = toFiniteNumberOrNull(payload.id)
   const incomingCode = payload.code ? String(payload.code).trim() : null
+  const incomingCodeNorm = normalizeCode(incomingCode)
   if (!incomingId && !incomingCode) return
 
-  let vehicle = incomingId ? await Vehicle.find(incomingId) : null
-  if (!vehicle && incomingCode) {
-    vehicle = await Vehicle.findBy('code', incomingCode)
+  const vehicleByCode = incomingCodeNorm
+    ? await Vehicle.query().whereRaw('LOWER(code) = ?', [incomingCodeNorm]).first()
+    : null
+  const vehicleById = incomingId ? await Vehicle.find(incomingId) : null
+
+  let vehicle: Vehicle | null = null
+  if (vehicleByCode) {
+    vehicle = vehicleByCode
+  } else if (
+    vehicleById &&
+    (!incomingCodeNorm || normalizeCode(vehicleById.code) === incomingCodeNorm)
+  ) {
+    vehicle = vehicleById
   }
 
   if (event.eventType === TRACKING_EVENT_TYPES.VEHICLE_DELETED) {
@@ -345,7 +386,6 @@ async function projectVehicleEvent(event: OrderTrackingEvent) {
 
   if (!incomingCode || !payload.name) return
   const created = await Vehicle.create({
-    id: incomingId ?? undefined,
     code: incomingCode,
     name: String(payload.name),
     imageUrl: payload.imageUrl ? String(payload.imageUrl) : null,
@@ -367,6 +407,10 @@ async function projectShiftEvent(event: OrderTrackingEvent) {
   const incomingId = toFiniteNumberOrNull(payload.id)
   if (!incomingId) return
 
+  const localUserId = await resolveLocalUserId(payload.userId, payload.userEmail)
+  const localVehicleId = await resolveLocalVehicleId(payload.vehicleId, payload.vehicleCode)
+  if (localUserId === null || localVehicleId === null) return
+
   let shift = await DriverShift.find(incomingId)
   if (event.eventType === TRACKING_EVENT_TYPES.DRIVER_SHIFT_ENDED) {
     if (!shift) return
@@ -382,10 +426,8 @@ async function projectShiftEvent(event: OrderTrackingEvent) {
     if (!lwwShouldApply(payload.updatedAt, toIsoOrNull(shift.updatedAt) ?? toIsoOrNull(shift.createdAt))) {
       return
     }
-    const userId = toFiniteNumberOrNull(payload.userId)
-    const vehicleId = toFiniteNumberOrNull(payload.vehicleId)
-    if (userId !== null) shift.userId = userId
-    if (vehicleId !== null) shift.vehicleId = vehicleId
+    shift.userId = localUserId
+    shift.vehicleId = localVehicleId
     if (payload.startedAt !== undefined && payload.startedAt !== null) {
       shift.startedAt = parseMaybeDate(payload.startedAt)
     }
@@ -396,13 +438,10 @@ async function projectShiftEvent(event: OrderTrackingEvent) {
     return
   }
 
-  const userId = toFiniteNumberOrNull(payload.userId)
-  const vehicleId = toFiniteNumberOrNull(payload.vehicleId)
-  if (userId === null || vehicleId === null) return
   const created = await DriverShift.create({
     id: incomingId,
-    userId,
-    vehicleId,
+    userId: localUserId,
+    vehicleId: localVehicleId,
     startedAt: parseMaybeDate(payload.startedAt ?? event.emittedAt),
     endedAt: parseOptionalDateTime(payload.endedAt ?? undefined),
   })
@@ -419,6 +458,9 @@ async function projectExpenseEvent(event: OrderTrackingEvent) {
   const incomingId = toFiniteNumberOrNull(payload.id)
   if (!incomingId) return
 
+  const localVehicleId = await resolveLocalVehicleId(payload.vehicleId, payload.vehicleCode)
+  if (localVehicleId === null) return
+
   let expense = await VehicleExpense.find(incomingId)
   if (event.eventType === TRACKING_EVENT_TYPES.VEHICLE_EXPENSE_DELETED) {
     if (expense && lwwShouldApply(payload.updatedAt, toIsoOrNull(expense.updatedAt) ?? toIsoOrNull(expense.createdAt))) {
@@ -431,8 +473,7 @@ async function projectExpenseEvent(event: OrderTrackingEvent) {
     if (!lwwShouldApply(payload.updatedAt, toIsoOrNull(expense.updatedAt) ?? toIsoOrNull(expense.createdAt))) {
       return
     }
-    const vehicleId = toFiniteNumberOrNull(payload.vehicleId)
-    if (vehicleId !== null) expense.vehicleId = vehicleId
+    expense.vehicleId = localVehicleId
     if (payload.expenseType !== undefined && payload.expenseType !== null) {
       expense.expenseType = String(payload.expenseType) as VehicleExpense['expenseType']
     }
@@ -447,11 +488,10 @@ async function projectExpenseEvent(event: OrderTrackingEvent) {
     return
   }
 
-  const vehicleId = toFiniteNumberOrNull(payload.vehicleId)
-  if (vehicleId === null || !payload.expenseType) return
+  if (!payload.expenseType) return
   const created = await VehicleExpense.create({
     id: incomingId,
-    vehicleId,
+    vehicleId: localVehicleId,
     expenseType: String(payload.expenseType) as VehicleExpense['expenseType'],
     amount: toFiniteNumberOrNull(payload.amount) ?? 0,
     currency: payload.currency ? String(payload.currency) : 'USD',

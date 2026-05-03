@@ -2,7 +2,7 @@ import DriverShift from '#models/driver_shift'
 import { enrichOrderListRows } from '#services/tracking_order_transport_meta_service'
 import TrackingOrder from '#models/tracking_order'
 import { applyQueueOrderForList } from '#services/tracking_orders_queue_order'
-import type User from '#models/user'
+import User from '#models/user'
 import Vehicle, { VEHICLE_STATUSES } from '#models/vehicle'
 import VehicleExpense, { VEHICLE_EXPENSE_TYPES } from '#models/vehicle_expense'
 import trackingPublicEventService from '#services/tracking_public_event_service'
@@ -81,12 +81,15 @@ export default class FleetController {
   }
 
   private async emitShiftSynced(shift: DriverShift, metadata?: Record<string, unknown>) {
+    const [user, vehicle] = await Promise.all([User.find(shift.userId), Vehicle.find(shift.vehicleId)])
     const event = createTrackingDomainEvent(TRACKING_EVENT_TYPES.DRIVER_SHIFT_UPSERTED, {
       source: 'internal',
       shift: {
         id: shift.id,
         userId: shift.userId,
+        userEmail: user?.email ?? null,
         vehicleId: shift.vehicleId,
+        vehicleCode: vehicle?.code ?? null,
         startedAt: shift.startedAt.toISO(),
         endedAt: shift.endedAt?.toISO() ?? null,
         createdAt: shift.createdAt.toISO(),
@@ -99,12 +102,15 @@ export default class FleetController {
   }
 
   private async emitShiftEnded(shift: DriverShift, metadata?: Record<string, unknown>) {
+    const [user, vehicle] = await Promise.all([User.find(shift.userId), Vehicle.find(shift.vehicleId)])
     const event = createTrackingDomainEvent(TRACKING_EVENT_TYPES.DRIVER_SHIFT_ENDED, {
       source: 'internal',
       shift: {
         id: shift.id,
         userId: shift.userId,
+        userEmail: user?.email ?? null,
         vehicleId: shift.vehicleId,
+        vehicleCode: vehicle?.code ?? null,
         startedAt: shift.startedAt.toISO(),
         endedAt: shift.endedAt?.toISO() ?? DateTime.now().toISO(),
         createdAt: shift.createdAt.toISO(),
@@ -117,11 +123,13 @@ export default class FleetController {
   }
 
   private async emitExpenseSynced(expense: VehicleExpense, metadata?: Record<string, unknown>) {
+    const vehicle = await Vehicle.find(expense.vehicleId)
     const event = createTrackingDomainEvent(TRACKING_EVENT_TYPES.VEHICLE_EXPENSE_UPSERTED, {
       source: 'internal',
       expense: {
         id: expense.id,
         vehicleId: expense.vehicleId,
+        vehicleCode: vehicle?.code ?? null,
         expenseType: expense.expenseType,
         amount: Number(expense.amount ?? 0),
         currency: expense.currency,
