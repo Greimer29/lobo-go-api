@@ -23,6 +23,7 @@ publicOutboundSchedule.skip(!publicOutboundEnabled)
 
 const publicReconcileEnabled = env.get('PUBLIC_SYNC_RECONCILE_ENABLED') !== false
 const publicReconcileCron = env.get('PUBLIC_SYNC_RECONCILE_CRON')?.trim() || '*/45 * * * * *'
+/** Reconciliación de eventos (orders + users + vehicles + shifts + expenses). */
 const publicReconcileSchedule = scheduler
   .command('reconcile:public-tracking')
   .withoutOverlapping(60_000)

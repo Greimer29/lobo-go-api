@@ -31,9 +31,13 @@ export default class PublicTrackingController {
       return response.badRequest({ message: 'JSON inválido en el cuerpo de la petición' })
     }
 
-    if (!event?.eventId || !event?.eventType || !event?.order?.numeroDocumento) {
+    const hasSupportedPayload = Boolean(
+      event?.order?.numeroDocumento || event?.user || event?.vehicle || event?.shift || event?.expense
+    )
+    if (!event?.eventId || !event?.eventType || !hasSupportedPayload) {
       return response.badRequest({
-        message: 'Payload inválido: se requiere eventId, eventType y order.numeroDocumento',
+        message:
+          'Payload inválido: se requiere eventId, eventType y al menos un payload de order/user/vehicle/shift/expense',
       })
     }
 

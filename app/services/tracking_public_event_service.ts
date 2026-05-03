@@ -3,12 +3,17 @@ import TrackingOrderItem from '#models/tracking_order_item'
 import TrackingOrderLocation from '#models/tracking_order_location'
 import TrackingOrderObservation from '#models/tracking_order_observation'
 import TrackingPublicEvent, { TRACKING_PUBLIC_EVENT_STATUS } from '#models/tracking_public_event'
+import User from '#models/user'
+import Vehicle from '#models/vehicle'
+import DriverShift from '#models/driver_shift'
+import VehicleExpense from '#models/vehicle_expense'
 import {
   TRACKING_EVENT_TYPES,
   type OrderTrackingEvent,
   type OrderTrackingEventItem,
   type OrderTrackingEventObservation,
   createOrderTrackingEvent,
+  resolveEventOrderDocument,
   toRealtimeOrderUpdatePayload,
   type TrackingEventType,
 } from '#services/tracking_public_event_contract'
@@ -107,7 +112,7 @@ function defaultOrderRow(doc: string) {
   }
 }
 
-function applyOrderScalarPatches(order: TrackingOrder, payload: OrderTrackingEvent['order']) {
+function applyOrderScalarPatches(order: TrackingOrder, payload: NonNullable<OrderTrackingEvent['order']>) {
   if ('vehicleId' in payload) {
     const vid = toFiniteNumberOrNull(payload.vehicleId)
     order.vehicleId = vid !== null && vid > 0 ? vid : null
@@ -228,6 +233,239 @@ async function replaceOrderObservationsFromEvent(
   })
 }
 
+function toIsoOrNull(dt?: DateTime | null) {
+  return dt?.toISO() ?? null
+}
+
+function lwwShouldApply(incomingIso: string | null | undefined, localIso: string | null | undefined) {
+  const incomingMs = toMillis(incomingIso)
+  if (incomingMs <= 0) return true
+  const localMs = toMillis(localIso)
+  if (localMs <= 0) return true
+  return incomingMs >= localMs
+}
+
+async function projectUserEvent(event: OrderTrackingEvent) {
+  const payload = event.user
+  if (!payload) return
+  const incomingId = toFiniteNumberOrNull(payload.id)
+  const incomingEmail = payload.email ? String(payload.email).trim().toLowerCase() : null
+  if (!incomingId && !incomingEmail) return
+
+  let user = incomingId ? await User.find(incomingId) : null
+  if (!user && incomingEmail) {
+    user = await User.findBy('email', incomingEmail)
+  }
+
+  if (event.eventType === TRACKING_EVENT_TYPES.USER_DELETED) {
+    if (user && lwwShouldApply(payload.updatedAt, toIsoOrNull(user.updatedAt) ?? toIsoOrNull(user.createdAt))) {
+      await user.delete()
+    }
+    return
+  }
+
+  if (user) {
+    if (!lwwShouldApply(payload.updatedAt, toIsoOrNull(user.updatedAt) ?? toIsoOrNull(user.createdAt))) {
+      return
+    }
+    if (payload.fullName !== undefined) user.fullName = payload.fullName ?? null
+    if (incomingEmail) user.email = incomingEmail
+    if (payload.role !== undefined && payload.role !== null) user.role = String(payload.role)
+    if (payload.approvalStatus !== undefined && payload.approvalStatus !== null) {
+      user.approvalStatus = String(payload.approvalStatus)
+    }
+    if (payload.approvedBy !== undefined) {
+      user.approvedBy = toFiniteNumberOrNull(payload.approvedBy)
+    }
+    if (payload.approvedAt !== undefined) {
+      user.approvedAt = parseOptionalDateTime(payload.approvedAt ?? undefined)
+    }
+    if (payload.avatarUrl !== undefined) {
+      user.avatarUrl = payload.avatarUrl ? String(payload.avatarUrl) : null
+    }
+    if (payload.passwordHash) user.password = String(payload.passwordHash)
+    await user.save()
+    return
+  }
+
+  if (!incomingEmail || !payload.role || !payload.approvalStatus) return
+  const created = await User.create({
+    id: incomingId ?? undefined,
+    fullName: payload.fullName ?? incomingEmail,
+    email: incomingEmail,
+    password: payload.passwordHash ?? `sync:${incomingEmail}`,
+    role: String(payload.role),
+    approvalStatus: String(payload.approvalStatus),
+    approvedBy: toFiniteNumberOrNull(payload.approvedBy),
+    approvedAt: parseOptionalDateTime(payload.approvedAt ?? undefined),
+    avatarUrl: payload.avatarUrl ? String(payload.avatarUrl) : null,
+  })
+  if (payload.updatedAt || payload.createdAt) {
+    created.createdAt = parseMaybeDate(payload.createdAt ?? payload.updatedAt ?? event.emittedAt)
+    created.updatedAt = parseOptionalDateTime(payload.updatedAt ?? undefined)
+    await created.save()
+  }
+}
+
+async function projectVehicleEvent(event: OrderTrackingEvent) {
+  const payload = event.vehicle
+  if (!payload) return
+  const incomingId = toFiniteNumberOrNull(payload.id)
+  const incomingCode = payload.code ? String(payload.code).trim() : null
+  if (!incomingId && !incomingCode) return
+
+  let vehicle = incomingId ? await Vehicle.find(incomingId) : null
+  if (!vehicle && incomingCode) {
+    vehicle = await Vehicle.findBy('code', incomingCode)
+  }
+
+  if (event.eventType === TRACKING_EVENT_TYPES.VEHICLE_DELETED) {
+    if (vehicle && lwwShouldApply(payload.updatedAt, toIsoOrNull(vehicle.updatedAt) ?? toIsoOrNull(vehicle.createdAt))) {
+      await vehicle.delete()
+    }
+    return
+  }
+
+  if (vehicle) {
+    if (!lwwShouldApply(payload.updatedAt, toIsoOrNull(vehicle.updatedAt) ?? toIsoOrNull(vehicle.createdAt))) {
+      return
+    }
+    if (incomingCode) vehicle.code = incomingCode
+    if (payload.name !== undefined && payload.name !== null) vehicle.name = String(payload.name)
+    if (payload.imageUrl !== undefined) vehicle.imageUrl = payload.imageUrl ? String(payload.imageUrl) : null
+    if (payload.operationalStatus !== undefined && payload.operationalStatus !== null) {
+      vehicle.operationalStatus = String(payload.operationalStatus) as Vehicle['operationalStatus']
+    }
+    if (payload.odometerKm !== undefined) {
+      vehicle.odometerKm = toFiniteNumberOrNull(payload.odometerKm) ?? 0
+    }
+    await vehicle.save()
+    return
+  }
+
+  if (!incomingCode || !payload.name) return
+  const created = await Vehicle.create({
+    id: incomingId ?? undefined,
+    code: incomingCode,
+    name: String(payload.name),
+    imageUrl: payload.imageUrl ? String(payload.imageUrl) : null,
+    operationalStatus: (payload.operationalStatus
+      ? String(payload.operationalStatus)
+      : 'active') as Vehicle['operationalStatus'],
+    odometerKm: toFiniteNumberOrNull(payload.odometerKm) ?? 0,
+  })
+  if (payload.updatedAt || payload.createdAt) {
+    created.createdAt = parseMaybeDate(payload.createdAt ?? payload.updatedAt ?? event.emittedAt)
+    created.updatedAt = parseOptionalDateTime(payload.updatedAt ?? undefined)
+    await created.save()
+  }
+}
+
+async function projectShiftEvent(event: OrderTrackingEvent) {
+  const payload = event.shift
+  if (!payload) return
+  const incomingId = toFiniteNumberOrNull(payload.id)
+  if (!incomingId) return
+
+  let shift = await DriverShift.find(incomingId)
+  if (event.eventType === TRACKING_EVENT_TYPES.DRIVER_SHIFT_ENDED) {
+    if (!shift) return
+    if (!lwwShouldApply(payload.updatedAt ?? payload.endedAt, toIsoOrNull(shift.updatedAt) ?? toIsoOrNull(shift.createdAt))) {
+      return
+    }
+    shift.endedAt = parseOptionalDateTime(payload.endedAt ?? payload.updatedAt ?? undefined)
+    await shift.save()
+    return
+  }
+
+  if (shift) {
+    if (!lwwShouldApply(payload.updatedAt, toIsoOrNull(shift.updatedAt) ?? toIsoOrNull(shift.createdAt))) {
+      return
+    }
+    const userId = toFiniteNumberOrNull(payload.userId)
+    const vehicleId = toFiniteNumberOrNull(payload.vehicleId)
+    if (userId !== null) shift.userId = userId
+    if (vehicleId !== null) shift.vehicleId = vehicleId
+    if (payload.startedAt !== undefined && payload.startedAt !== null) {
+      shift.startedAt = parseMaybeDate(payload.startedAt)
+    }
+    if (payload.endedAt !== undefined) {
+      shift.endedAt = parseOptionalDateTime(payload.endedAt ?? undefined)
+    }
+    await shift.save()
+    return
+  }
+
+  const userId = toFiniteNumberOrNull(payload.userId)
+  const vehicleId = toFiniteNumberOrNull(payload.vehicleId)
+  if (userId === null || vehicleId === null) return
+  const created = await DriverShift.create({
+    id: incomingId,
+    userId,
+    vehicleId,
+    startedAt: parseMaybeDate(payload.startedAt ?? event.emittedAt),
+    endedAt: parseOptionalDateTime(payload.endedAt ?? undefined),
+  })
+  if (payload.updatedAt || payload.createdAt) {
+    created.createdAt = parseMaybeDate(payload.createdAt ?? payload.updatedAt ?? event.emittedAt)
+    created.updatedAt = parseOptionalDateTime(payload.updatedAt ?? undefined)
+    await created.save()
+  }
+}
+
+async function projectExpenseEvent(event: OrderTrackingEvent) {
+  const payload = event.expense
+  if (!payload) return
+  const incomingId = toFiniteNumberOrNull(payload.id)
+  if (!incomingId) return
+
+  let expense = await VehicleExpense.find(incomingId)
+  if (event.eventType === TRACKING_EVENT_TYPES.VEHICLE_EXPENSE_DELETED) {
+    if (expense && lwwShouldApply(payload.updatedAt, toIsoOrNull(expense.updatedAt) ?? toIsoOrNull(expense.createdAt))) {
+      await expense.delete()
+    }
+    return
+  }
+
+  if (expense) {
+    if (!lwwShouldApply(payload.updatedAt, toIsoOrNull(expense.updatedAt) ?? toIsoOrNull(expense.createdAt))) {
+      return
+    }
+    const vehicleId = toFiniteNumberOrNull(payload.vehicleId)
+    if (vehicleId !== null) expense.vehicleId = vehicleId
+    if (payload.expenseType !== undefined && payload.expenseType !== null) {
+      expense.expenseType = String(payload.expenseType) as VehicleExpense['expenseType']
+    }
+    if (payload.amount !== undefined) expense.amount = toFiniteNumberOrNull(payload.amount) ?? 0
+    if (payload.currency !== undefined && payload.currency !== null) expense.currency = String(payload.currency)
+    if (payload.tripCount !== undefined) expense.tripCount = toFiniteNumberOrNull(payload.tripCount)
+    if (payload.notes !== undefined) expense.notes = payload.notes ? String(payload.notes) : null
+    if (payload.expenseDate !== undefined && payload.expenseDate !== null) {
+      expense.expenseDate = parseMaybeDate(payload.expenseDate)
+    }
+    await expense.save()
+    return
+  }
+
+  const vehicleId = toFiniteNumberOrNull(payload.vehicleId)
+  if (vehicleId === null || !payload.expenseType) return
+  const created = await VehicleExpense.create({
+    id: incomingId,
+    vehicleId,
+    expenseType: String(payload.expenseType) as VehicleExpense['expenseType'],
+    amount: toFiniteNumberOrNull(payload.amount) ?? 0,
+    currency: payload.currency ? String(payload.currency) : 'USD',
+    tripCount: toFiniteNumberOrNull(payload.tripCount),
+    notes: payload.notes ? String(payload.notes) : null,
+    expenseDate: parseMaybeDate(payload.expenseDate ?? event.emittedAt),
+  })
+  if (payload.updatedAt || payload.createdAt) {
+    created.createdAt = parseMaybeDate(payload.createdAt ?? payload.updatedAt ?? event.emittedAt)
+    created.updatedAt = parseOptionalDateTime(payload.updatedAt ?? undefined)
+    await created.save()
+  }
+}
+
 class TrackingPublicEventService {
   async #resolveOutboundRowEventId(eventId: string) {
     let candidate = eventId
@@ -241,7 +479,7 @@ class TrackingPublicEventService {
   }
 
   async enqueueOutbound(event: OrderTrackingEvent) {
-    const doc = normalizeDoc(event.order.numeroDocumento)
+    const doc = resolveEventOrderDocument(event)
     const rowEventId = await this.#resolveOutboundRowEventId(event.eventId)
     const row = await TrackingPublicEvent.create({
       eventId: rowEventId,
@@ -328,7 +566,7 @@ class TrackingPublicEventService {
   }
 
   async receiveInbound(event: OrderTrackingEvent) {
-    const doc = normalizeDoc(event.order.numeroDocumento)
+    const doc = resolveEventOrderDocument(event)
     const existing = await TrackingPublicEvent.query().where('eventId', event.eventId).first()
     if (existing) {
       return { duplicated: true, event: parseJson(existing.payload) }
@@ -345,21 +583,52 @@ class TrackingPublicEventService {
       attemptCount: 1,
     })
 
-    await this.#projectToOrderState(event)
-    trackingPublicRealtimeHubService.publishOrderUpdate(
-      doc,
-      toRealtimeOrderUpdatePayload(event, {
-        receivedAt: DateTime.now().toISO() ?? undefined,
-      })
-    )
+    await this.#projectToState(event)
+    if (event.order?.numeroDocumento) {
+      trackingPublicRealtimeHubService.publishOrderUpdate(
+        doc,
+        toRealtimeOrderUpdatePayload(event, {
+          receivedAt: DateTime.now().toISO() ?? undefined,
+        })
+      )
+    }
     return { duplicated: false, event: parseJson(created.payload) }
   }
 
-  async #projectToOrderState(event: OrderTrackingEvent) {
-    const doc = normalizeDoc(event.order.numeroDocumento)
+  async #projectToState(event: OrderTrackingEvent) {
+    if (
+      event.eventType === TRACKING_EVENT_TYPES.USER_UPSERTED ||
+      event.eventType === TRACKING_EVENT_TYPES.USER_DELETED
+    ) {
+      await projectUserEvent(event)
+      return
+    }
+    if (
+      event.eventType === TRACKING_EVENT_TYPES.VEHICLE_UPSERTED ||
+      event.eventType === TRACKING_EVENT_TYPES.VEHICLE_DELETED
+    ) {
+      await projectVehicleEvent(event)
+      return
+    }
+    if (
+      event.eventType === TRACKING_EVENT_TYPES.DRIVER_SHIFT_UPSERTED ||
+      event.eventType === TRACKING_EVENT_TYPES.DRIVER_SHIFT_ENDED
+    ) {
+      await projectShiftEvent(event)
+      return
+    }
+    if (
+      event.eventType === TRACKING_EVENT_TYPES.VEHICLE_EXPENSE_UPSERTED ||
+      event.eventType === TRACKING_EVENT_TYPES.VEHICLE_EXPENSE_DELETED
+    ) {
+      await projectExpenseEvent(event)
+      return
+    }
+
+    const doc = normalizeDoc(event.order?.numeroDocumento ?? '')
     if (!doc) return
 
-    const payload = event.order
+    const payload = event.order ?? { numeroDocumento: doc }
     let order = await TrackingOrder.query().where('numeroDocumento', doc).first()
     if (!order) {
       const base = defaultOrderRow(doc)
@@ -405,16 +674,16 @@ class TrackingPublicEventService {
         previous.recordedAt = recordedAt
         if (order) {
           previous.trackingOrderId = order.id
-          previous.vehicleId = event.order.vehicleId ?? order.vehicleId
+          previous.vehicleId = event.order?.vehicleId ?? order.vehicleId
         } else {
-          previous.vehicleId = event.order.vehicleId ?? previous.vehicleId
+          previous.vehicleId = event.order?.vehicleId ?? previous.vehicleId
         }
         await previous.save()
       } else {
         await TrackingOrderLocation.create({
           orderDocument: doc,
           trackingOrderId: order?.id ?? null,
-          vehicleId: event.order.vehicleId ?? order?.vehicleId ?? null,
+          vehicleId: event.order?.vehicleId ?? order?.vehicleId ?? null,
           latitude: Number(event.location.latitude),
           longitude: Number(event.location.longitude),
           accuracyMeters: event.location.accuracyMeters ?? null,

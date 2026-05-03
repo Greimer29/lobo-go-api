@@ -50,7 +50,7 @@ class TrackingPublicReconcileService {
    * - /public/events/changed-outbound (eventos generados allá, aún no propagados por HTTP)
    * Aplica cada uno como `receiveInbound` (idempotente por eventId).
    */
-  async pullLocationsFromPublic(sinceIso?: string) {
+  async pullEventsFromPublic(sinceIso?: string) {
     const base = env.get('PUBLIC_TRACKING_BASE_URL')?.trim()
     if (!base) {
       return { applied: 0, skipped: true, reason: 'PUBLIC_TRACKING_BASE_URL no configurada' }
@@ -86,6 +86,11 @@ class TrackingPublicReconcileService {
 
     this.#cursorIso = DateTime.now().toISO()
     return { applied, skipped: false as const, since }
+  }
+
+  /** @deprecated mantener compatibilidad con comandos existentes */
+  async pullLocationsFromPublic(sinceIso?: string) {
+    return this.pullEventsFromPublic(sinceIso)
   }
 }
 

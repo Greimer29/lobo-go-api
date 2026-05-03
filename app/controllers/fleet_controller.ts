@@ -5,6 +5,11 @@ import { applyQueueOrderForList } from '#services/tracking_orders_queue_order'
 import type User from '#models/user'
 import Vehicle, { VEHICLE_STATUSES } from '#models/vehicle'
 import VehicleExpense, { VEHICLE_EXPENSE_TYPES } from '#models/vehicle_expense'
+import trackingPublicEventService from '#services/tracking_public_event_service'
+import {
+  TRACKING_EVENT_TYPES,
+  createTrackingDomainEvent,
+} from '#services/tracking_public_event_contract'
 import {
   createVehicleExpenseValidator,
   createVehicleValidator,
@@ -16,6 +21,122 @@ import db from '@adonisjs/lucid/services/db'
 import { DateTime } from 'luxon'
 
 export default class FleetController {
+  /**
+   * Lista de turnos activos para panel administrativo (repartidor + unidad asignada).
+   */
+  async activeShifts({ auth, response }: HttpContext) {
+    const user = auth.getUserOrFail() as User
+    if (!user.isAdmin) {
+      return response.forbidden({ message: 'Solo administradores pueden ver turnos activos' })
+    }
+
+    const shifts = await DriverShift.query()
+      .whereNull('endedAt')
+      .preload('user')
+      .preload('vehicle')
+      .orderBy('startedAt', 'desc')
+
+    return response.ok({
+      serverTime: DateTime.utc().toISO(),
+      shifts: shifts.map((shift) => ({
+        id: shift.id,
+        user: shift.user
+          ? {
+              id: shift.user.id,
+              fullName: shift.user.fullName,
+              email: shift.user.email,
+            }
+          : null,
+        vehicle: shift.vehicle
+          ? {
+              id: shift.vehicle.id,
+              code: shift.vehicle.code,
+              name: shift.vehicle.name,
+              operationalStatus: shift.vehicle.operationalStatus,
+            }
+          : null,
+        startedAt: shift.startedAt.toISO(),
+        endedAt: shift.endedAt?.toISO() ?? null,
+      })),
+    })
+  }
+
+  private async emitVehicleSynced(vehicle: Vehicle, metadata?: Record<string, unknown>) {
+    const event = createTrackingDomainEvent(TRACKING_EVENT_TYPES.VEHICLE_UPSERTED, {
+      source: 'internal',
+      vehicle: {
+        id: vehicle.id,
+        code: vehicle.code,
+        name: vehicle.name,
+        imageUrl: vehicle.imageUrl,
+        operationalStatus: vehicle.operationalStatus,
+        odometerKm: Number(vehicle.odometerKm ?? 0),
+        createdAt: vehicle.createdAt.toISO(),
+        updatedAt: vehicle.updatedAt?.toISO() ?? vehicle.createdAt.toISO(),
+      },
+      metadata: metadata ?? {},
+    })
+    await trackingPublicEventService.receiveInbound(event)
+    await trackingPublicEventService.enqueueOutbound(event)
+  }
+
+  private async emitShiftSynced(shift: DriverShift, metadata?: Record<string, unknown>) {
+    const event = createTrackingDomainEvent(TRACKING_EVENT_TYPES.DRIVER_SHIFT_UPSERTED, {
+      source: 'internal',
+      shift: {
+        id: shift.id,
+        userId: shift.userId,
+        vehicleId: shift.vehicleId,
+        startedAt: shift.startedAt.toISO(),
+        endedAt: shift.endedAt?.toISO() ?? null,
+        createdAt: shift.createdAt.toISO(),
+        updatedAt: shift.updatedAt?.toISO() ?? shift.createdAt.toISO(),
+      },
+      metadata: metadata ?? {},
+    })
+    await trackingPublicEventService.receiveInbound(event)
+    await trackingPublicEventService.enqueueOutbound(event)
+  }
+
+  private async emitShiftEnded(shift: DriverShift, metadata?: Record<string, unknown>) {
+    const event = createTrackingDomainEvent(TRACKING_EVENT_TYPES.DRIVER_SHIFT_ENDED, {
+      source: 'internal',
+      shift: {
+        id: shift.id,
+        userId: shift.userId,
+        vehicleId: shift.vehicleId,
+        startedAt: shift.startedAt.toISO(),
+        endedAt: shift.endedAt?.toISO() ?? DateTime.now().toISO(),
+        createdAt: shift.createdAt.toISO(),
+        updatedAt: shift.updatedAt?.toISO() ?? DateTime.now().toISO(),
+      },
+      metadata: metadata ?? {},
+    })
+    await trackingPublicEventService.receiveInbound(event)
+    await trackingPublicEventService.enqueueOutbound(event)
+  }
+
+  private async emitExpenseSynced(expense: VehicleExpense, metadata?: Record<string, unknown>) {
+    const event = createTrackingDomainEvent(TRACKING_EVENT_TYPES.VEHICLE_EXPENSE_UPSERTED, {
+      source: 'internal',
+      expense: {
+        id: expense.id,
+        vehicleId: expense.vehicleId,
+        expenseType: expense.expenseType,
+        amount: Number(expense.amount ?? 0),
+        currency: expense.currency,
+        tripCount: expense.tripCount,
+        notes: expense.notes,
+        expenseDate: expense.expenseDate.toISO(),
+        createdAt: expense.createdAt.toISO(),
+        updatedAt: expense.updatedAt?.toISO() ?? expense.createdAt.toISO(),
+      },
+      metadata: metadata ?? {},
+    })
+    await trackingPublicEventService.receiveInbound(event)
+    await trackingPublicEventService.enqueueOutbound(event)
+  }
+
   async stats({ response }: HttpContext) {
     const vehicles = await Vehicle.query().preload('expenses')
     const totals = {
@@ -152,6 +273,18 @@ export default class FleetController {
       .first()
 
     const v = shift?.vehicle
+    if (shift) {
+      await this.emitShiftSynced(shift, {
+        channel: 'driver:shift-start',
+        triggeredByUserId: user.id,
+      })
+    }
+    if (v) {
+      await this.emitVehicleSynced(v, {
+        channel: 'driver:shift-start-vehicle',
+        triggeredByUserId: user.id,
+      })
+    }
     return response.ok({
       message: 'Turno iniciado',
       shift: shift
@@ -205,6 +338,23 @@ export default class FleetController {
       }
     })
 
+    const refreshedShift = await DriverShift.find(shift.id)
+    if (refreshedShift) {
+      await this.emitShiftEnded(refreshedShift, {
+        channel: 'driver:shift-end',
+        triggeredByUserId: user.id,
+      })
+    }
+    if (shift.vehicle) {
+      const refreshedVehicle = await Vehicle.find(shift.vehicle.id)
+      if (refreshedVehicle) {
+        await this.emitVehicleSynced(refreshedVehicle, {
+          channel: 'driver:shift-end-vehicle',
+          triggeredByUserId: user.id,
+        })
+      }
+    }
+
     return response.ok({ message: 'Turno cerrado' })
   }
 
@@ -238,6 +388,10 @@ export default class FleetController {
 
     vehicle.operationalStatus = payload.operationalStatus
     await vehicle.save()
+    await this.emitVehicleSynced(vehicle, {
+      channel: 'fleet:update-vehicle-status',
+      triggeredByUserId: user.id,
+    })
 
     return response.ok({
       message: 'Estado actualizado',
@@ -267,6 +421,10 @@ export default class FleetController {
       operationalStatus: payload.operationalStatus ?? 'active',
       odometerKm: payload.odometerKm ?? 0,
       imageUrl: payload.imageUrl?.trim() || null,
+    })
+    await this.emitVehicleSynced(vehicle, {
+      channel: 'fleet:create-vehicle',
+      triggeredByUserId: user.id,
     })
 
     return response.created({
@@ -308,6 +466,10 @@ export default class FleetController {
       tripCount: payload.tripCount ?? null,
       notes: payload.notes ?? null,
       expenseDate: payload.expenseDate ? DateTime.fromISO(payload.expenseDate) : DateTime.now(),
+    })
+    await this.emitExpenseSynced(expense, {
+      channel: 'fleet:create-expense',
+      triggeredByUserId: user.id,
     })
 
     return response.created({

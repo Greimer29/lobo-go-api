@@ -3,6 +3,8 @@ import {
   TRACKING_EVENT_SCHEMA_VERSION,
   TRACKING_EVENT_TYPES,
   createOrderTrackingEvent,
+  createTrackingDomainEvent,
+  resolveEventOrderDocument,
   toRealtimeOrderUpdatePayload,
 } from '#services/tracking_public_event_contract'
 
@@ -23,7 +25,7 @@ test.group('tracking public event contract', () => {
     })
 
     assert.equal(event.schemaVersion, TRACKING_EVENT_SCHEMA_VERSION)
-    assert.equal(event.order.numeroDocumento, '0001')
+    assert.equal(event.order?.numeroDocumento, '0001')
     assert.equal(event.eventType, TRACKING_EVENT_TYPES.ORDER_LOCATION)
     assert.isString(event.eventId)
     assert.isString(event.idempotencyKey)
@@ -53,5 +55,24 @@ test.group('tracking public event contract', () => {
     assert.equal(payload.order.vehicleId, 5)
     assert.equal(payload.receivedAt, '2026-01-01T00:00:00.000Z')
     assert.isNull(payload.location)
+  })
+
+  test('builds domain event for vehicle without order and resolves synthetic document', ({ assert }) => {
+    const event = createTrackingDomainEvent(TRACKING_EVENT_TYPES.VEHICLE_UPSERTED, {
+      source: 'internal',
+      vehicle: {
+        id: 22,
+        code: 'MC-22',
+        name: 'Motocarrucha 22',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      metadata: { channel: 'test' },
+    })
+
+    assert.equal(event.schemaVersion, TRACKING_EVENT_SCHEMA_VERSION)
+    assert.equal(event.eventType, TRACKING_EVENT_TYPES.VEHICLE_UPSERTED)
+    assert.isUndefined(event.order)
+    assert.equal(resolveEventOrderDocument(event), 'vehicle:22')
+    assert.match(event.idempotencyKey, /^vehicle_upserted:vehicle:22:/)
   })
 })

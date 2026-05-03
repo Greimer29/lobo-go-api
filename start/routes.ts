@@ -101,6 +101,7 @@ router
     router
       .group(() => {
         router.get('stats', [FleetController, 'stats'])
+        router.get('shifts/active', [FleetController, 'activeShifts'])
         router.get('shifts/current', [FleetController, 'currentShift'])
         router.post('shifts/start', [FleetController, 'startShift'])
         router.post('shifts/end', [FleetController, 'endShift'])

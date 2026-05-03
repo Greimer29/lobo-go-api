@@ -1,4 +1,9 @@
 import User, { APPROVAL_STATUSES } from '#models/user'
+import trackingPublicEventService from '#services/tracking_public_event_service'
+import {
+  TRACKING_EVENT_TYPES,
+  createTrackingDomainEvent,
+} from '#services/tracking_public_event_contract'
 import { adminCreateUserValidator } from '#validators/admin_users'
 import type { HttpContext } from '@adonisjs/core/http'
 import { DateTime } from 'luxon'
@@ -21,6 +26,28 @@ function userToListDto(user: User) {
 }
 
 export default class AdminUsersController {
+  private async emitUserSynced(user: User, metadata?: Record<string, unknown>) {
+    const event = createTrackingDomainEvent(TRACKING_EVENT_TYPES.USER_UPSERTED, {
+      source: 'internal',
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        approvalStatus: user.approvalStatus,
+        approvedBy: user.approvedBy,
+        approvedAt: user.approvedAt?.toISO() ?? null,
+        avatarUrl: user.avatarUrl,
+        passwordHash: user.password,
+        createdAt: user.createdAt.toISO(),
+        updatedAt: user.updatedAt?.toISO() ?? user.createdAt.toISO(),
+      },
+      metadata: metadata ?? {},
+    })
+    await trackingPublicEventService.receiveInbound(event)
+    await trackingPublicEventService.enqueueOutbound(event)
+  }
+
   private ensureAdmin({ auth, response }: HttpContext) {
     const user = auth.getUserOrFail()
     if (!user.isAdmin) {
@@ -57,6 +84,10 @@ export default class AdminUsersController {
       approvedBy: admin.id,
       approvedAt: DateTime.now(),
     })
+    await this.emitUserSynced(user, {
+      channel: 'admin:user-store',
+      triggeredByUserId: admin.id,
+    })
 
     return ctx.response.created({
       message: 'Usuario creado',
@@ -77,6 +108,10 @@ export default class AdminUsersController {
     user.approvedBy = admin.id
     user.approvedAt = DateTime.now()
     await user.save()
+    await this.emitUserSynced(user, {
+      channel: 'admin:user-approve',
+      triggeredByUserId: admin.id,
+    })
 
     return ctx.response.ok({
       message: 'Usuario aprobado',
@@ -97,6 +132,10 @@ export default class AdminUsersController {
     user.approvedBy = admin.id
     user.approvedAt = DateTime.now()
     await user.save()
+    await this.emitUserSynced(user, {
+      channel: 'admin:user-reject',
+      triggeredByUserId: admin.id,
+    })
 
     return ctx.response.ok({
       message: 'Usuario rechazado',
