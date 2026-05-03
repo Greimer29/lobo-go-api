@@ -4,6 +4,27 @@ import env from '#start/env'
 import logger from '@adonisjs/core/services/logger'
 import { DateTime } from 'luxon'
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isRetryableHttpStatus(status: number) {
+  return status === 408 || status === 429 || status >= 500
+}
+
+function isRetryableNetworkError(err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err)
+  const upper = msg.toUpperCase()
+  return (
+    upper.includes('ECONNRESET') ||
+    upper.includes('ETIMEDOUT') ||
+    upper.includes('UND_ERR') ||
+    upper.includes('NETWORKERROR') ||
+    upper.includes('FETCH FAILED') ||
+    upper.includes('ABORT')
+  )
+}
+
 class TrackingPublicReconcileService {
   #cursorIso: string | null = null
 
@@ -25,13 +46,44 @@ class TrackingPublicReconcileService {
     const url = `${base.replace(/\/$/, '')}${path}?since=${encodeURIComponent(
       String(since)
     )}&limit=${limit}`
-    const res = await fetch(url)
-    if (!res.ok) {
-      const txt = await res.text()
-      throw new Error(`HTTP ${res.status} ${txt || res.statusText} @ ${path}`)
+    const timeoutMs = Math.max(2000, Math.min(Number(env.get('PUBLIC_SYNC_HTTP_TIMEOUT_MS') ?? 9000), 60000))
+    const retries = Math.max(0, Math.min(Number(env.get('PUBLIC_SYNC_HTTP_RETRIES') ?? 2), 8))
+    const backoffBaseMs = Math.max(
+      150,
+      Math.min(Number(env.get('PUBLIC_SYNC_HTTP_RETRY_BASE_MS') ?? 500), 10000)
+    )
+
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+      try {
+        const res = await fetch(url, { signal: controller.signal })
+        if (!res.ok) {
+          const txt = await res.text()
+          const err = new Error(`HTTP ${res.status} ${txt || res.statusText} @ ${path}`)
+          ;(err as Error & { retryable?: boolean }).retryable = isRetryableHttpStatus(res.status)
+          throw err
+        }
+        const payload = (await res.json()) as { events?: OrderTrackingEvent[] }
+        return Array.isArray(payload.events) ? payload.events : []
+      } catch (err) {
+        const retryable =
+          (err as Error & { retryable?: boolean })?.retryable === true ||
+          isRetryableNetworkError(err)
+        if (attempt >= retries || !retryable) {
+          throw err
+        }
+        const backoffMs = backoffBaseMs * 2 ** attempt
+        logger.warn(
+          { err, path, attempt: attempt + 1, retries, backoffMs },
+          'Reconcile: request transitorio, reintentando pull'
+        )
+        await sleep(backoffMs)
+      } finally {
+        clearTimeout(timeoutId)
+      }
     }
-    const payload = (await res.json()) as { events?: OrderTrackingEvent[] }
-    return Array.isArray(payload.events) ? payload.events : []
+    return []
   }
 
   async #applyEvents(events: OrderTrackingEvent[]) {

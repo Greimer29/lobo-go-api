@@ -160,6 +160,18 @@ export default await Env.create(new URL('../', import.meta.url), {
   PUBLIC_SYNC_RECONCILE_CRON: Env.schema.string.optional(),
   PUBLIC_SYNC_RECONCILE_LOOKBACK_SECONDS: Env.schema.number.optional(),
   PUBLIC_SYNC_RECONCILE_LIMIT: Env.schema.number.optional(),
+  /**
+   * Timeout HTTP (ms) para sync/reconcile público.
+   */
+  PUBLIC_SYNC_HTTP_TIMEOUT_MS: Env.schema.number.optional(),
+  /**
+   * Reintentos por request HTTP público ante errores transitorios (ECONNRESET, 5xx, timeout).
+   */
+  PUBLIC_SYNC_HTTP_RETRIES: Env.schema.number.optional(),
+  /**
+   * Backoff base (ms) para reintentos HTTP públicos.
+   */
+  PUBLIC_SYNC_HTTP_RETRY_BASE_MS: Env.schema.number.optional(),
 
   // Geocoding opcional (si admin carga solo dirección para destino)
   GOOGLE_MAPS_GEOCODING_API_KEY: Env.schema.string.optional(),
