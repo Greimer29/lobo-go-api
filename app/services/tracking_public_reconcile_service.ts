@@ -89,7 +89,7 @@ class TrackingPublicReconcileService {
   async #applyEvents(events: OrderTrackingEvent[]) {
     let applied = 0
     for (const event of events) {
-      if (!event?.order?.numeroDocumento) continue
+      if (!event?.eventId || !event?.eventType) continue
       const result = await trackingPublicEventService.receiveInbound(event)
       if (!result.duplicated) applied += 1
     }
