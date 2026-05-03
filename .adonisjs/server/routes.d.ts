@@ -29,6 +29,7 @@ export type ScannedRoutes = {
     'admin.admin_users.reject': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.admin_stats.users': { paramsTuple?: []; params?: {} }
     'fleet.fleet.stats': { paramsTuple?: []; params?: {} }
+    'fleet.fleet.active_shifts': { paramsTuple?: []; params?: {} }
     'fleet.fleet.current_shift': { paramsTuple?: []; params?: {} }
     'fleet.fleet.start_shift': { paramsTuple?: []; params?: {} }
     'fleet.fleet.end_shift': { paramsTuple?: []; params?: {} }
@@ -56,6 +57,7 @@ export type ScannedRoutes = {
     'admin.admin_users.index': { paramsTuple?: []; params?: {} }
     'admin.admin_stats.users': { paramsTuple?: []; params?: {} }
     'fleet.fleet.stats': { paramsTuple?: []; params?: {} }
+    'fleet.fleet.active_shifts': { paramsTuple?: []; params?: {} }
     'fleet.fleet.current_shift': { paramsTuple?: []; params?: {} }
     'fleet.fleet.vehicle_panel': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'public.public_tracking.latest_location': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }
@@ -77,6 +79,7 @@ export type ScannedRoutes = {
     'admin.admin_users.index': { paramsTuple?: []; params?: {} }
     'admin.admin_stats.users': { paramsTuple?: []; params?: {} }
     'fleet.fleet.stats': { paramsTuple?: []; params?: {} }
+    'fleet.fleet.active_shifts': { paramsTuple?: []; params?: {} }
     'fleet.fleet.current_shift': { paramsTuple?: []; params?: {} }
     'fleet.fleet.vehicle_panel': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'public.public_tracking.latest_location': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }

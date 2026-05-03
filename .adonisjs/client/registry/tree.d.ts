@@ -51,6 +51,7 @@ export interface ApiDefinition {
   fleet: {
     fleet: {
       stats: typeof routes['fleet.fleet.stats']
+      activeShifts: typeof routes['fleet.fleet.active_shifts']
       currentShift: typeof routes['fleet.fleet.current_shift']
       startShift: typeof routes['fleet.fleet.start_shift']
       endShift: typeof routes['fleet.fleet.end_shift']

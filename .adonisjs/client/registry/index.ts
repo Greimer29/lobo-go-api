@@ -156,6 +156,12 @@ const routes = {
     tokens: [{"old":"/api/v1/fleet/stats","type":0,"val":"api","end":""},{"old":"/api/v1/fleet/stats","type":0,"val":"v1","end":""},{"old":"/api/v1/fleet/stats","type":0,"val":"fleet","end":""},{"old":"/api/v1/fleet/stats","type":0,"val":"stats","end":""}],
     types: placeholder as Registry['fleet.fleet.stats']['types'],
   },
+  'fleet.fleet.active_shifts': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/fleet/shifts/active',
+    tokens: [{"old":"/api/v1/fleet/shifts/active","type":0,"val":"api","end":""},{"old":"/api/v1/fleet/shifts/active","type":0,"val":"v1","end":""},{"old":"/api/v1/fleet/shifts/active","type":0,"val":"fleet","end":""},{"old":"/api/v1/fleet/shifts/active","type":0,"val":"shifts","end":""},{"old":"/api/v1/fleet/shifts/active","type":0,"val":"active","end":""}],
+    types: placeholder as Registry['fleet.fleet.active_shifts']['types'],
+  },
   'fleet.fleet.current_shift': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/fleet/shifts/current',

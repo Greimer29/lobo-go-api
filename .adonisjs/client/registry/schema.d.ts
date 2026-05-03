@@ -307,6 +307,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/fleet_controller').default['stats']>>>
     }
   }
+  'fleet.fleet.active_shifts': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/fleet/shifts/active'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/fleet_controller').default['activeShifts']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/fleet_controller').default['activeShifts']>>>
+    }
+  }
   'fleet.fleet.current_shift': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/fleet/shifts/current'
