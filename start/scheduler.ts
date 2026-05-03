@@ -10,19 +10,19 @@ const schedule = scheduler.command('sync:sadev').withoutOverlapping(45_000)
 if (cronExpr && cronExpr.length > 0) {
   schedule.cron(cronExpr)
 } else {
-  schedule.cron('*/15 * * * * *')
+  schedule.cron('*/10 * * * * *')
 }
 
 schedule.skip(!autoSyncEnabled)
 
 const publicOutboundEnabled = env.get('PUBLIC_SYNC_OUTBOUND_ENABLED') !== false
-const publicOutboundCron = env.get('PUBLIC_SYNC_OUTBOUND_CRON')?.trim() || '*/20 * * * * *'
+const publicOutboundCron = env.get('PUBLIC_SYNC_OUTBOUND_CRON')?.trim() || '*/10 * * * * *'
 const publicOutboundSchedule = scheduler.command('sync:public-events').withoutOverlapping(45_000)
 publicOutboundSchedule.cron(publicOutboundCron)
 publicOutboundSchedule.skip(!publicOutboundEnabled)
 
 const publicReconcileEnabled = env.get('PUBLIC_SYNC_RECONCILE_ENABLED') !== false
-const publicReconcileCron = env.get('PUBLIC_SYNC_RECONCILE_CRON')?.trim() || '*/45 * * * * *'
+const publicReconcileCron = env.get('PUBLIC_SYNC_RECONCILE_CRON')?.trim() || '*/10 * * * * *'
 /** Reconciliación de eventos (orders + users + vehicles + shifts + expenses). */
 const publicReconcileSchedule = scheduler
   .command('reconcile:public-tracking')
