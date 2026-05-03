@@ -35,9 +35,11 @@ class TrackingPublicReconcileService {
     if (this.#cursorIso) {
       return this.#cursorIso
     }
+    // En arranques/reinicios, una ventana demasiado corta puede saltarse eventos
+    // pendientes en el remoto. Mantenemos un mínimo de 1 hora para convergencia segura.
     const lookbackSeconds = Math.max(
-      30,
-      Number(env.get('PUBLIC_SYNC_RECONCILE_LOOKBACK_SECONDS') ?? 120)
+      3600,
+      Number(env.get('PUBLIC_SYNC_RECONCILE_LOOKBACK_SECONDS') ?? 3600)
     )
     return DateTime.now().minus({ seconds: lookbackSeconds }).toISO()
   }

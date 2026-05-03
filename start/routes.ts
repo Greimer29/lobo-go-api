@@ -16,6 +16,8 @@ const AdminUsersController = () => import('#controllers/admin_users_controller')
 const AdminStatsController = () => import('#controllers/admin_stats_controller')
 const FleetController = () => import('#controllers/fleet_controller')
 const PublicTrackingController = () => import('#controllers/public_tracking_controller')
+const InternalCorporateOrdersController = () =>
+  import('#controllers/internal_corporate_orders_controller')
 
 router.get('/', () => {
   return { hello: 'world' }
@@ -129,5 +131,12 @@ router
       })
       .prefix('public')
       .as('public')
+
+    router
+      .group(() => {
+        router.post('orders/from-corporate', [InternalCorporateOrdersController, 'fromCorporate'])
+      })
+      .prefix('internal')
+      .as('internal')
   })
   .prefix('/api/v1')

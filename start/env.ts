@@ -173,6 +173,14 @@ export default await Env.create(new URL('../', import.meta.url), {
    */
   PUBLIC_SYNC_HTTP_RETRY_BASE_MS: Env.schema.number.optional(),
 
+  // Bridge corporativo local -> Railway
+  BRIDGE_RAILWAY_BASE_URL: Env.schema.string.optional(),
+  BRIDGE_RAILWAY_API_KEY: Env.schema.string.optional(),
+  BRIDGE_INTERVAL_SECONDS: Env.schema.number.optional(),
+  BRIDGE_PULL_LIMIT: Env.schema.number.optional(),
+  BRIDGE_MAX_RETRIES: Env.schema.number.optional(),
+  CORP_BRIDGE_API_KEY: Env.schema.string.optional(),
+
   // Geocoding opcional (si admin carga solo dirección para destino)
   GOOGLE_MAPS_GEOCODING_API_KEY: Env.schema.string.optional(),
 })

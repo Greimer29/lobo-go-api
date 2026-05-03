@@ -11,6 +11,15 @@ function isRetryableHttpStatus(status: number) {
   return status === 408 || status === 429 || status >= 500
 }
 
+function isDuplicateEventError(status: number, bodyText: string) {
+  const txt = String(bodyText ?? '').toLowerCase()
+  if (status === 409) return true
+  return (
+    txt.includes('duplicate entry') &&
+    (txt.includes('tracking_public_events_event_id_unique') || txt.includes('event_id_unique'))
+  )
+}
+
 function isRetryableNetworkError(err: unknown) {
   const msg = err instanceof Error ? err.message : String(err)
   const upper = msg.toUpperCase()
@@ -50,6 +59,10 @@ class TrackingPublicSyncService {
         })
         if (!res.ok) {
           const txt = await res.text()
+          if (isDuplicateEventError(res.status, txt)) {
+            // El remoto ya recibió este eventId antes; tratamos como éxito idempotente.
+            return
+          }
           const err = new Error(`HTTP ${res.status}: ${txt || res.statusText}`)
           ;(err as Error & { retryable?: boolean }).retryable = isRetryableHttpStatus(res.status)
           throw err

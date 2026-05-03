@@ -8,6 +8,7 @@ export const controllers = {
   AdminStats: () => import('#controllers/admin_stats_controller'),
   AdminUsers: () => import('#controllers/admin_users_controller'),
   Fleet: () => import('#controllers/fleet_controller'),
+  InternalCorporateOrders: () => import('#controllers/internal_corporate_orders_controller'),
   NewAccount: () => import('#controllers/new_account_controller'),
   Profile: () => import('#controllers/profile_controller'),
   PublicTracking: () => import('#controllers/public_tracking_controller'),
