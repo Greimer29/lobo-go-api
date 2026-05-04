@@ -41,7 +41,7 @@ class TrackingPublicSignatureService {
   }
 
   verifyIncoming(headers: Record<string, unknown>, payloadRaw: string) {
-    const acceptUnsigned = env.get('PUBLIC_TRACKING_ACCEPT_UNSIGNED') === true
+    const acceptUnsigned = false
     const expectedApiKey = env.get('PUBLIC_TRACKING_API_KEY')
     const secret = env.get('PUBLIC_TRACKING_SIGNING_SECRET')
 

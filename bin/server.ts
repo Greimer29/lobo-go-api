@@ -10,6 +10,7 @@
 */
 
 await import('reflect-metadata')
+import { createServer } from 'node:http'
 const { Ignitor, prettyPrintError } = await import('@adonisjs/core')
 
 /**
@@ -29,19 +30,31 @@ const IMPORTER = (filePath: string) => {
   return import(filePath)
 }
 
+type WsHub = {
+  start: (nodeServer?: {
+    on: (
+      event: 'upgrade',
+      listener: (req: unknown, socket: unknown, head: Buffer) => void
+    ) => void
+  }) => void
+}
+let wsHub: WsHub | null = null
+
 new Ignitor(APP_ROOT, { importer: IMPORTER })
   .tap((app) => {
     app.booting(async () => {
       await import('#start/env')
-      const hubModule = await import('#services/tracking_public_realtime_hub_service')
-      const hub = hubModule.default
-      hub.start()
+      wsHub = (await import('#services/tracking_public_realtime_hub_service')).default as WsHub
     })
     app.listen('SIGTERM', () => app.terminate())
     app.listenIf(app.managedByPm2, 'SIGINT', () => app.terminate())
   })
   .httpServer()
-  .start()
+  .start((handler) => {
+    const httpServer = createServer(handler)
+    wsHub?.start(httpServer as any)
+    return httpServer
+  })
   .catch((error) => {
     process.exitCode = 1
     prettyPrintError(error)

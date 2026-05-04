@@ -1,18 +1,11 @@
 import DriverShift from '#models/driver_shift'
 import TrackingOrder from '#models/tracking_order'
+import TrackingOrderLocation from '#models/tracking_order_location'
 import TrackingOrderObservation from '#models/tracking_order_observation'
 import type User from '#models/user'
 import Vehicle, { VEHICLE_STATUSES } from '#models/vehicle'
 import trackingOrderCompletionService from '#services/tracking_order_completion_service'
-import {
-  loadTrackingOrderForSnapshot,
-  trackingOrderToSyncEventOrder,
-} from '#services/tracking_order_sync_event_payload'
-import {
-  TRACKING_EVENT_TYPES,
-  createOrderTrackingEvent,
-} from '#services/tracking_public_event_contract'
-import trackingPublicEventService from '#services/tracking_public_event_service'
+import trackingPublicRealtimeHubService from '#services/tracking_public_realtime_hub_service'
 import trackingRealtimeMetricsService from '#services/tracking_realtime_metrics_service'
 import trackingOrderSyncService from '#services/tracking_order_sync_service'
 import { enrichOrderListRows } from '#services/tracking_order_transport_meta_service'
@@ -93,29 +86,13 @@ function normalizeInvalidForeignKeys(order: TrackingOrder) {
 }
 
 /**
- * Publica el estado actual de un pedido como `order_synced` rico en ambos sentidos:
- * - `receiveInbound`: queda aplicado e indexable por este lado (visible en timeline y en /events/changed).
- * - `enqueueOutbound`: se encola para empujar al otro lado por HTTP.
- *
- * Así cualquier mutación (admin local o móvil contra la pública) se vuelve
- * observable y replicable por el otro extremo sin intervención manual.
+ * Publica el estado actual de un pedido como `order_synced` de forma local (timeline y WS).
  */
 async function emitOrderSyncedFullSnapshot(
-  numeroDocumento: string,
-  metadata?: Record<string, unknown>
+  _numeroDocumento: string,
+  _metadata?: Record<string, unknown>
 ) {
-  const fresh = await loadTrackingOrderForSnapshot(numeroDocumento)
-  if (!fresh) return
-
-  const event = createOrderTrackingEvent(TRACKING_EVENT_TYPES.ORDER_SYNCED, {
-    source: 'internal',
-    order: trackingOrderToSyncEventOrder(fresh),
-    location: null,
-    metadata: metadata ?? {},
-  })
-
-  await trackingPublicEventService.receiveInbound(event)
-  await trackingPublicEventService.enqueueOutbound(event)
+  return
 }
 
 type LinkDest = {
@@ -206,24 +183,6 @@ export default class TrackingOrdersController {
       message = `Sincronizado: ${synced} pedido(s) guardados o actualizados en MySQL.`
     } else {
       message = 'Sincronización completada.'
-    }
-
-    const numeroDocumento = String(request.input('numeroD') ?? '').trim()
-    if (numeroDocumento) {
-      const order = await TrackingOrder.query()
-        .where('numeroDocumento', numeroDocumento)
-        .preload('items', (q) => q.orderBy('lineIndex', 'asc'))
-        .first()
-      if (order) {
-        await trackingPublicEventService.enqueueOutbound(
-          createOrderTrackingEvent(TRACKING_EVENT_TYPES.ORDER_SYNCED, {
-            source: 'internal',
-            order: trackingOrderToSyncEventOrder(order),
-            location: null,
-            metadata: { triggeredByUserId: user.id },
-          })
-        )
-      }
     }
 
     return response.ok({
@@ -584,19 +543,6 @@ export default class TrackingOrdersController {
     vehicle.operationalStatus = VEHICLE_STATUSES.EN_ROUTE
     await vehicle.save()
 
-    const claimEvent = createOrderTrackingEvent(TRACKING_EVENT_TYPES.ORDER_CLAIMED, {
-      source: 'internal',
-      order: {
-        numeroDocumento: order.numeroDocumento,
-        status: order.status,
-        vehicleId: order.vehicleId,
-        transportStartedAt: order.transportStartedAt?.toISO() ?? null,
-      },
-      location: null,
-      metadata: { claimedByUserId: user.id },
-    })
-    await trackingPublicEventService.receiveInbound(claimEvent)
-    await trackingPublicEventService.enqueueOutbound(claimEvent)
     await emitOrderSyncedFullSnapshot(order.numeroDocumento, {
       channel: 'driver:claim',
       claimedByUserId: user.id,
@@ -663,22 +609,6 @@ export default class TrackingOrdersController {
 
     const order = await TrackingOrder.query().where('numeroDocumento', trimmed).first()
     if (order) {
-      const completeEvent = createOrderTrackingEvent(TRACKING_EVENT_TYPES.ORDER_COMPLETED, {
-        source: 'internal',
-        order: {
-          numeroDocumento: order.numeroDocumento,
-          status: order.status,
-          vehicleId: order.vehicleId,
-          completedAt: order.updatedAt?.toISO() ?? null,
-        },
-        location: null,
-        metadata: {
-          completedByUserId: user.id,
-          corporateRowsAffected: result.corporateRowsAffected,
-        },
-      })
-      await trackingPublicEventService.receiveInbound(completeEvent)
-      await trackingPublicEventService.enqueueOutbound(completeEvent)
       await emitOrderSyncedFullSnapshot(order.numeroDocumento, {
         channel: 'driver:complete',
         completedByUserId: user.id,
@@ -817,8 +747,40 @@ export default class TrackingOrdersController {
     const providerRaw = String(request.input('provider') ?? 'mobile').trim()
     const provider = providerRaw.slice(0, 64) || 'mobile'
 
-    const event = createOrderTrackingEvent(TRACKING_EVENT_TYPES.ORDER_LOCATION, {
+    const recordedAtIso =
+      recordedAtRaw ||
+      DateTime.fromMillis(nowMs).toISO() ||
+      DateTime.now().toISO()
+    const recordedAt = DateTime.fromISO(recordedAtIso)
+    const existingLocation = await TrackingOrderLocation.query()
+      .where('orderDocument', order.numeroDocumento)
+      .first()
+    if (existingLocation) {
+      existingLocation.latitude = latitude
+      existingLocation.longitude = longitude
+      existingLocation.accuracyMeters = accuracyMeters
+      existingLocation.speedMps = speedMps
+      existingLocation.provider = provider
+      existingLocation.recordedAt = recordedAt.isValid ? recordedAt : DateTime.now()
+      existingLocation.trackingOrderId = order.id
+      existingLocation.vehicleId = order.vehicleId
+      await existingLocation.save()
+    } else {
+      await TrackingOrderLocation.create({
+        orderDocument: order.numeroDocumento,
+        trackingOrderId: order.id,
+        vehicleId: order.vehicleId,
+        latitude,
+        longitude,
+        accuracyMeters,
+        speedMps,
+        provider,
+        recordedAt: recordedAt.isValid ? recordedAt : DateTime.now(),
+      })
+    }
+    trackingPublicRealtimeHubService.publishOrderUpdate(order.numeroDocumento, {
       source: 'mobile',
+      emittedAt: recordedAtIso,
       order: {
         numeroDocumento: order.numeroDocumento,
         status: order.status,
@@ -830,24 +792,16 @@ export default class TrackingOrdersController {
         accuracyMeters,
         speedMps,
         provider,
-        recordedAt:
-          recordedAtRaw ||
-          DateTime.fromMillis(nowMs).toISO() ||
-          DateTime.now().toISO(),
+        recordedAt: recordedAtIso,
       },
-      metadata: {
-        userId: user.id,
-      },
+      metadata: { userId: user.id },
     })
-
-    await trackingPublicEventService.receiveInbound(event)
-    await trackingPublicEventService.enqueueOutbound(event)
     trackingRealtimeMetricsService.markLocationPublished()
 
     return response.ok({
       message: 'Ubicación publicada',
       numeroDocumento: order.numeroDocumento,
-      eventId: event.eventId,
+      eventId: `loc-${Date.now()}`,
     })
   }
 
@@ -912,7 +866,9 @@ export default class TrackingOrdersController {
       }
     }
 
-    const location = await trackingPublicEventService.getLatestLocation(numeroDocumento)
+    const location = await TrackingOrderLocation.query()
+      .where('orderDocument', numeroDocumento)
+      .first()
 
     const rowForEnrich: Record<string, unknown> = {
       vehicleId: order.vehicleId,

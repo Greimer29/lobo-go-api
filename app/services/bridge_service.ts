@@ -68,15 +68,11 @@ class BridgeService {
   }
 
   private railwayBaseUrl() {
-    return (
-      env.get('BRIDGE_RAILWAY_BASE_URL')?.trim() ||
-      env.get('PUBLIC_TRACKING_BASE_URL')?.trim() ||
-      ''
-    )
+    return env.get('BRIDGE_RAILWAY_BASE_URL')?.trim() || ''
   }
 
   private railwayApiKey() {
-    return env.get('BRIDGE_RAILWAY_API_KEY')?.trim() || env.get('PUBLIC_TRACKING_API_KEY')?.trim() || ''
+    return env.get('BRIDGE_RAILWAY_API_KEY')?.trim() || ''
   }
 
   private async readState(): Promise<BridgeState> {
@@ -110,9 +106,9 @@ class BridgeService {
 
     const rows = await saDevService.listPedidosCompuestos({
       limit: this.pullLimit(),
-      corporateStatuses: [0, 1],
+      corporateStatuses: [0],
       excludeDeliveredCorporateRows: true,
-      excludeHandoffCorporateRows: false,
+      excludeHandoffCorporateRows: true,
     })
 
     await this.writeLog(`fetchPendingInvoicesFromSqlServer ok rows=${rows.length}`)
@@ -122,12 +118,12 @@ class BridgeService {
   async pushToRailway(invoice: PedidoCompuesto) {
     const baseUrl = this.railwayBaseUrl()
     if (!baseUrl) {
-      throw new Error('BRIDGE_RAILWAY_BASE_URL o PUBLIC_TRACKING_BASE_URL no configurada')
+      throw new Error('BRIDGE_RAILWAY_BASE_URL no configurada')
     }
 
     const apiKey = this.railwayApiKey()
     if (!apiKey) {
-      throw new Error('BRIDGE_RAILWAY_API_KEY o PUBLIC_TRACKING_API_KEY no configurada')
+      throw new Error('BRIDGE_RAILWAY_API_KEY no configurada')
     }
 
     const target = `${baseUrl.replace(/\/+$/, '')}/api/v1/internal/orders/from-corporate`
@@ -145,7 +141,45 @@ class BridgeService {
       throw new Error(`HTTP ${response.status} ${response.statusText}: ${body}`)
     }
 
-    await this.writeLog(`pushToRailway ok numeroDocumento=${invoice.numeroDocumento}`)
+    let payload: Record<string, unknown> | null = null
+    try {
+      payload = (await response.json()) as Record<string, unknown>
+    } catch {}
+
+    await this.writeLog(
+      `pushToRailway ok numeroDocumento=${invoice.numeroDocumento} synced=${String(
+        payload?.synced ?? 'n/a'
+      )} unchanged=${String(payload?.unchanged ?? 'n/a')}`
+    )
+  }
+
+  private async markSadevAsSynced(invoice: PedidoCompuesto) {
+    const syncedStatus = saDevService.handoffSyncedStatusValue()
+    const affected = await saDevService.updateSaDevStatus(invoice.numeroDocumento, syncedStatus)
+    if (affected <= 0) {
+      throw new Error(
+        `SADEV no actualizado para NumeroD=${invoice.numeroDocumento} (rowsAffected=${affected})`
+      )
+    }
+    await this.writeLog(
+      `markSadevAsSynced ok numeroDocumento=${invoice.numeroDocumento} status=${syncedStatus} rows=${affected}`
+    )
+  }
+
+  private async pushAndMarkSynced(invoice: PedidoCompuesto) {
+    await this.pushToRailway(invoice)
+    await this.markSadevAsSynced(invoice)
+  }
+
+  private upsertQueueRow(queue: FailedInvoiceRow[], row: FailedInvoiceRow) {
+    const index = queue.findIndex(
+      (item) => item.invoice.numeroDocumento === row.invoice.numeroDocumento
+    )
+    if (index === -1) {
+      queue.push(row)
+      return
+    }
+    queue[index] = row
   }
 
   async handleRetry(invoice: PedidoCompuesto, error: unknown, attemptCount = 1) {
@@ -153,7 +187,7 @@ class BridgeService {
     const nextAttemptAt = DateTime.now().plus({ seconds: this.backoffSeconds(attemptCount) }).toISO()!
 
     const queue = await this.readFailedQueue()
-    queue.push({
+    this.upsertQueueRow(queue, {
       invoice,
       attemptCount,
       nextAttemptAt,
@@ -187,7 +221,7 @@ class BridgeService {
       }
 
       try {
-        await this.pushToRailway(row.invoice)
+        await this.pushAndMarkSynced(row.invoice)
       } catch (error) {
         const nextAttempt = row.attemptCount + 1
         if (nextAttempt > maxRetries) {
@@ -218,7 +252,7 @@ class BridgeService {
     let sent = 0
     for (const invoice of invoices) {
       try {
-        await this.pushToRailway(invoice)
+        await this.pushAndMarkSynced(invoice)
         sent++
       } catch (error) {
         await this.handleRetry(invoice, error, 1)
