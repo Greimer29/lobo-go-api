@@ -1,5 +1,5 @@
 import bridgeService from '#services/bridge_service'
-import { BaseCommand } from '@adonisjs/core/ace'
+import { BaseCommand, flags } from '@adonisjs/core/ace'
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -12,9 +12,16 @@ export default class BridgeRun extends BaseCommand {
     startApp: true,
   }
 
+  @flags.boolean({
+    description: 'Ejecuta un solo ciclo (SQL Server -> Railway -> SADEV=1) y termina',
+  })
+  declare once: boolean
+
   async run() {
     const intervalSeconds = bridgeService.intervalSeconds()
-    this.logger.info(`bridge:run iniciado; intervalo=${intervalSeconds}s`)
+    this.logger.info(
+      `bridge:run iniciado; intervalo=${intervalSeconds}s once=${this.once ? 'true' : 'false'}`
+    )
 
     while (true) {
       try {
@@ -23,6 +30,9 @@ export default class BridgeRun extends BaseCommand {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         this.logger.error(`bridge:run ciclo con error: ${message}`)
+      }
+      if (this.once) {
+        return
       }
       await sleep(intervalSeconds * 1000)
     }

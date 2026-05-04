@@ -1,0 +1,60 @@
+[2026-05-03T22:17:33.058+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=null
+[2026-05-03T22:17:33.094+00:00] fetchPendingInvoicesFromSqlServer ok rows=0
+[2026-05-03T22:17:33.095+00:00] runCycle complete sent=0 fetched=0
+[2026-05-03T22:18:03.116+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-03T22:17:33.094+00:00
+[2026-05-03T22:18:03.120+00:00] fetchPendingInvoicesFromSqlServer ok rows=0
+[2026-05-03T22:18:03.127+00:00] runCycle complete sent=0 fetched=0
+[2026-05-03T22:18:51.801+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-03T22:18:03.125+00:00
+[2026-05-03T22:18:51.845+00:00] fetchPendingInvoicesFromSqlServer ok rows=0
+[2026-05-03T22:18:51.847+00:00] runCycle complete sent=0 fetched=0
+[2026-05-03T22:19:21.874+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-03T22:18:51.846+00:00
+[2026-05-03T22:19:21.888+00:00] fetchPendingInvoicesFromSqlServer ok rows=0
+[2026-05-03T22:19:21.891+00:00] runCycle complete sent=0 fetched=0
+[2026-05-03T22:19:51.919+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-03T22:19:21.889+00:00
+[2026-05-03T22:19:51.925+00:00] fetchPendingInvoicesFromSqlServer ok rows=0
+[2026-05-03T22:19:51.930+00:00] runCycle complete sent=0 fetched=0
+[2026-05-03T22:20:14.462+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-03T22:19:51.928+00:00
+[2026-05-03T22:20:14.499+00:00] fetchPendingInvoicesFromSqlServer ok rows=0
+[2026-05-03T22:20:14.501+00:00] runCycle complete sent=0 fetched=0
+[2026-05-03T22:20:44.525+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-03T22:20:14.500+00:00
+[2026-05-03T22:20:44.544+00:00] fetchPendingInvoicesFromSqlServer ok rows=0
+[2026-05-03T22:20:44.549+00:00] runCycle complete sent=0 fetched=0
+[2026-05-03T22:55:38.614+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-03T22:20:44.546+00:00
+[2026-05-03T22:55:38.681+00:00] fetchPendingInvoicesFromSqlServer ok rows=0
+[2026-05-03T22:55:38.683+00:00] runCycle complete sent=0 fetched=0
+[2026-05-03T23:24:11.197+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-03T22:55:38.682+00:00
+[2026-05-03T23:24:11.239+00:00] fetchPendingInvoicesFromSqlServer ok rows=0
+[2026-05-03T23:24:11.241+00:00] runCycle complete sent=0 fetched=0
+[2026-05-03T23:28:33.915+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-03T23:24:11.240+00:00
+[2026-05-03T23:28:33.953+00:00] fetchPendingInvoicesFromSqlServer ok rows=0
+[2026-05-03T23:28:33.955+00:00] runCycle complete sent=0 fetched=0
+[2026-05-03T23:39:44.339+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-03T23:28:33.954+00:00
+[2026-05-03T23:39:44.454+00:00] fetchPendingInvoicesFromSqlServer ok rows=0
+[2026-05-03T23:39:44.459+00:00] runCycle complete sent=0 fetched=0
+[2026-05-04T00:34:27.114+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-03T23:39:44.457+00:00
+[2026-05-04T00:34:27.250+00:00] fetchPendingInvoicesFromSqlServer ok rows=5
+[2026-05-04T00:34:27.869+00:00] handleRetry queued numeroDocumento=*00000028 attempts=1 nextAttemptAt=2026-05-04T00:34:28.866+00:00 error=HTTP 401 : {"message":"No autorizado"}
+[2026-05-04T00:34:28.287+00:00] handleRetry queued numeroDocumento=*00000027 attempts=1 nextAttemptAt=2026-05-04T00:34:29.283+00:00 error=HTTP 401 : {"message":"No autorizado"}
+[2026-05-04T00:34:28.593+00:00] handleRetry queued numeroDocumento=*00000026 attempts=1 nextAttemptAt=2026-05-04T00:34:29.591+00:00 error=HTTP 401 : {"message":"No autorizado"}
+[2026-05-04T00:34:28.881+00:00] handleRetry queued numeroDocumento=*00000025 attempts=1 nextAttemptAt=2026-05-04T00:34:29.879+00:00 error=HTTP 401 : {"message":"No autorizado"}
+[2026-05-04T00:34:29.073+00:00] handleRetry queued numeroDocumento=*00000024 attempts=1 nextAttemptAt=2026-05-04T00:34:30.071+00:00 error=HTTP 401 : {"message":"No autorizado"}
+[2026-05-04T00:34:29.075+00:00] runCycle complete sent=0 fetched=5
+[2026-05-04T00:39:37.085+00:00] pushToRailway ok numeroDocumento=*00000028 synced=0 unchanged=1
+[2026-05-04T00:39:37.173+00:00] markSadevAsSynced ok numeroDocumento=*00000028 status=1 rows=1
+[2026-05-04T00:39:37.381+00:00] pushToRailway ok numeroDocumento=*00000027 synced=0 unchanged=1
+[2026-05-04T00:39:37.389+00:00] markSadevAsSynced ok numeroDocumento=*00000027 status=1 rows=1
+[2026-05-04T00:39:37.622+00:00] pushToRailway ok numeroDocumento=*00000026 synced=0 unchanged=1
+[2026-05-04T00:39:37.636+00:00] markSadevAsSynced ok numeroDocumento=*00000026 status=1 rows=1
+[2026-05-04T00:39:37.848+00:00] pushToRailway ok numeroDocumento=*00000025 synced=0 unchanged=1
+[2026-05-04T00:39:37.856+00:00] markSadevAsSynced ok numeroDocumento=*00000025 status=1 rows=1
+[2026-05-04T00:39:38.095+00:00] pushToRailway ok numeroDocumento=*00000024 synced=0 unchanged=1
+[2026-05-04T00:39:38.103+00:00] markSadevAsSynced ok numeroDocumento=*00000024 status=1 rows=1
+[2026-05-04T00:39:38.113+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-04T00:34:29.074+00:00
+[2026-05-04T00:39:38.130+00:00] fetchPendingInvoicesFromSqlServer ok rows=0
+[2026-05-04T00:39:38.137+00:00] runCycle complete sent=0 fetched=0
+[2026-05-04T00:40:41.198+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-04T00:39:38.136+00:00
+[2026-05-04T00:40:41.259+00:00] fetchPendingInvoicesFromSqlServer ok rows=0
+[2026-05-04T00:40:41.263+00:00] runCycle complete sent=0 fetched=0
+[2026-05-04T02:48:41.531+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-04T00:40:41.261+00:00
+[2026-05-04T02:48:41.665+00:00] fetchPendingInvoicesFromSqlServer ok rows=0
+[2026-05-04T02:48:41.677+00:00] runCycle complete sent=0 fetched=0

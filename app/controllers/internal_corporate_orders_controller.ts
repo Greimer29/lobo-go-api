@@ -12,7 +12,14 @@ function isInvoicePayloadValid(invoice: Partial<PedidoCompuesto> | null | undefi
 
 export default class InternalCorporateOrdersController {
   async fromCorporate({ request, response }: HttpContext) {
-    const expectedApiKey = env.get('CORP_BRIDGE_API_KEY') || env.get('BRIDGE_RAILWAY_API_KEY')
+    if (env.get('EMERGENCY_DISABLE') === true) {
+      return response.serviceUnavailable({
+        message: 'Service temporarily disabled by administrator',
+      })
+    }
+
+    const expectedApiKey = env.get('CORP_BRIDGE_API_KEY')
+
     if (!expectedApiKey) {
       return response.status(500).send({
         message: 'CORP_BRIDGE_API_KEY no configurada en el servicio Railway',

@@ -12,15 +12,11 @@ import {
   type OrderTrackingEvent,
   type OrderTrackingEventItem,
   type OrderTrackingEventObservation,
-  createOrderTrackingEvent,
   resolveEventOrderDocument,
   toRealtimeOrderUpdatePayload,
-  type TrackingEventType,
 } from '#services/tracking_public_event_contract'
 import trackingPublicRealtimeHubService from '#services/tracking_public_realtime_hub_service'
 import db from '@adonisjs/lucid/services/db'
-import logger from '@adonisjs/core/services/logger'
-import env from '#start/env'
 import { DateTime } from 'luxon'
 
 function toJson(event: OrderTrackingEvent) {
@@ -507,104 +503,6 @@ async function projectExpenseEvent(event: OrderTrackingEvent) {
 }
 
 class TrackingPublicEventService {
-  async #resolveOutboundRowEventId(eventId: string) {
-    let candidate = eventId
-    let i = 0
-    while (true) {
-      const exists = await TrackingPublicEvent.query().where('eventId', candidate).first()
-      if (!exists) return candidate
-      i += 1
-      candidate = `${eventId}:out-${i}`
-    }
-  }
-
-  async enqueueOutbound(event: OrderTrackingEvent) {
-    const doc = resolveEventOrderDocument(event)
-    const rowEventId = await this.#resolveOutboundRowEventId(event.eventId)
-    const row = await TrackingPublicEvent.create({
-      eventId: rowEventId,
-      direction: 'outbound',
-      eventType: event.eventType,
-      orderDocument: doc,
-      payload: toJson(event),
-      status: TRACKING_PUBLIC_EVENT_STATUS.PENDING,
-    })
-
-    const baseUrl = env.get('PUBLIC_TRACKING_BASE_URL')?.trim()
-    const outboundOff = env.get('PUBLIC_SYNC_OUTBOUND_ENABLED') === false
-    const immediateOff = env.get('PUBLIC_SYNC_IMMEDIATE_FLUSH') === false
-    if (baseUrl && !outboundOff && !immediateOff) {
-      const fromEnv =
-        env.get('PUBLIC_SYNC_IMMEDIATE_FLUSH_LIMIT') ?? env.get('PUBLIC_SYNC_OUTBOUND_LIMIT') ?? 50
-      const limit = Number.isFinite(Number(fromEnv))
-        ? Math.min(500, Math.max(1, Number(fromEnv)))
-        : 50
-      void import('#services/tracking_public_sync_service')
-        .then(({ default: sync }) => sync.flushOutbound(limit))
-        .catch((err) => {
-          logger.warn({ err }, 'Flush outbound tras enqueue falló (se reintentará con el scheduler)')
-        })
-    }
-
-    return row
-  }
-
-  async createAndEnqueueOutbound(
-    type: TrackingEventType,
-    base: Omit<OrderTrackingEvent, 'eventId' | 'eventType' | 'emittedAt' | 'idempotencyKey'>
-  ) {
-    const event = createOrderTrackingEvent(type, base)
-    await this.enqueueOutbound(event)
-    return event
-  }
-
-  async markOutboundSent(eventId: string) {
-    const row = await TrackingPublicEvent.query()
-      .where('eventId', eventId)
-      .where('direction', 'outbound')
-      .first()
-    if (!row) return
-    row.status = TRACKING_PUBLIC_EVENT_STATUS.SENT
-    row.sentAt = DateTime.now()
-    row.lastError = null
-    row.nextRetryAt = null
-    row.attemptCount = row.attemptCount + 1
-    await row.save()
-  }
-
-  async markOutboundFailed(eventId: string, error: string) {
-    const row = await TrackingPublicEvent.query()
-      .where('eventId', eventId)
-      .where('direction', 'outbound')
-      .first()
-    if (!row) return
-    row.status = TRACKING_PUBLIC_EVENT_STATUS.FAILED
-    row.lastError = error
-    row.attemptCount = row.attemptCount + 1
-    const retrySeconds = Math.min(300, Math.max(15, row.attemptCount * 15))
-    row.nextRetryAt = DateTime.now().plus({ seconds: retrySeconds })
-    await row.save()
-  }
-
-  async getPendingOutbound(limit = 50) {
-    const now = DateTime.now().toSQL({ includeOffset: false }) ?? undefined
-    return TrackingPublicEvent.query()
-      .where('direction', 'outbound')
-      .where((q) => {
-        q.where('status', TRACKING_PUBLIC_EVENT_STATUS.PENDING)
-          .orWhere('status', TRACKING_PUBLIC_EVENT_STATUS.FAILED)
-          .orWhere((q2) => {
-            q2.where('status', TRACKING_PUBLIC_EVENT_STATUS.FAILED).where(
-              'next_retry_at',
-              '<=',
-              now
-            )
-          })
-      })
-      .orderBy('createdAt', 'asc')
-      .limit(limit)
-  }
-
   async receiveInbound(event: OrderTrackingEvent) {
     const doc = resolveEventOrderDocument(event)
     const existing = await TrackingPublicEvent.query().where('eventId', event.eventId).first()
@@ -755,20 +653,6 @@ class TrackingPublicEventService {
     const sinceDt = parseMaybeDate(sinceIso)
     const rows = await TrackingPublicEvent.query()
       .where('direction', 'inbound')
-      .where('createdAt', '>=', sinceDt.toSQL({ includeOffset: false }) ?? undefined)
-      .orderBy('createdAt', 'asc')
-      .limit(Math.max(1, Math.min(limit, 1000)))
-    return rows.map((row) => parseJson(row.payload))
-  }
-
-  /**
-   * Eventos que este lado generó (p. ej. mutaciones de móviles en Railway) y están en su cola outbound.
-   * El otro lado los consume por pull para convergencia bidireccional aun sin conexión directa.
-   */
-  async getChangedOutboundEventsSince(sinceIso: string, limit = 200) {
-    const sinceDt = parseMaybeDate(sinceIso)
-    const rows = await TrackingPublicEvent.query()
-      .where('direction', 'outbound')
       .where('createdAt', '>=', sinceDt.toSQL({ includeOffset: false }) ?? undefined)
       .orderBy('createdAt', 'asc')
       .limit(Math.max(1, Math.min(limit, 1000)))

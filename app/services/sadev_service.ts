@@ -192,7 +192,14 @@ class SaDevService {
    */
   handoffSyncedStatusValue(): number {
     const v = env.get('SQLSERVER_SADEV_SYNCED_STATUS')
-    return typeof v === 'number' && !Number.isNaN(v) ? v : 1
+    /**
+     * Hardening: por la operación de LOBO el handoff válido es 1.
+     * Si viene otra configuración (ej. 9), se ignora y se fuerza 1.
+     */
+    if (typeof v === 'number' && !Number.isNaN(v) && v === 1) {
+      return 1
+    }
+    return 1
   }
 
   /**
@@ -242,15 +249,26 @@ class SaDevService {
 
   private getPool() {
     if (!this.poolPromise) {
+      const host = env.get('SQLSERVER_HOST')
+      const port = env.get('SQLSERVER_PORT')
+      const database = env.get('SQLSERVER_DATABASE')
+      const user = env.get('SQLSERVER_USER')
+      const password = env.get('SQLSERVER_PASSWORD')
+      const encrypt = env.get('SQLSERVER_ENCRYPT')
+      if (!host || !database || !user || !password || port === undefined || encrypt === undefined) {
+        throw new Error(
+          'Faltan variables SQLSERVER_* requeridas para conectar (HOST, PORT, DATABASE, USER, PASSWORD, ENCRYPT)'
+        )
+      }
       this.poolPromise = new mssql.ConnectionPool({
-        server: env.get('SQLSERVER_HOST'),
-        port: env.get('SQLSERVER_PORT'),
-        database: env.get('SQLSERVER_DATABASE'),
-        user: env.get('SQLSERVER_USER'),
-        password: env.get('SQLSERVER_PASSWORD'),
+        server: host,
+        port,
+        database,
+        user,
+        password,
         options: {
-          encrypt: env.get('SQLSERVER_ENCRYPT'),
-          trustServerCertificate: !env.get('SQLSERVER_ENCRYPT'),
+          encrypt,
+          trustServerCertificate: !encrypt,
           requestTimeout: 120_000,
         },
       }).connect()

@@ -118,15 +118,8 @@ router
 
     router
       .group(() => {
-        router.post('events', [PublicTrackingController, 'ingestEvent'])
         router.get('orders/:numeroDocumento/location', [PublicTrackingController, 'latestLocation'])
         router.get('orders/:numeroDocumento/timeline', [PublicTrackingController, 'timeline'])
-        router.get('orders/locations/changed', [PublicTrackingController, 'changedLocations'])
-        router.get('events/changed', [PublicTrackingController, 'changedEvents'])
-        router.get('events/changed-outbound', [
-          PublicTrackingController,
-          'changedOutboundEvents',
-        ])
         router.get('metrics', [PublicTrackingController, 'metrics'])
       })
       .prefix('public')
