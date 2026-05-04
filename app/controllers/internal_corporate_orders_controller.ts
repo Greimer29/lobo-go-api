@@ -1,4 +1,5 @@
 import trackingOrderSyncService from '#services/tracking_order_sync_service'
+import WarehouseLookupService from '#services/warehouse_lookup_service'
 import type { PedidoCompuesto } from '#services/sadev_service'
 import env from '#start/env'
 import type { HttpContext } from '@adonisjs/core/http'
@@ -40,16 +41,25 @@ export default class InternalCorporateOrdersController {
       })
     }
 
+    const items = invoice.items ?? []
+    const codigoDeposito =
+      items.find((item: any) => String(item?.codigoUbicacion ?? '').trim().length > 0)?.codigoUbicacion ??
+      invoice.codigoUbicacion ??
+      null
+
+    const lookupService = new WarehouseLookupService()
+    const warehouse = await lookupService.findByCode(codigoDeposito)
+
     const normalized: PedidoCompuesto = {
       numeroDocumento: String(invoice.numeroDocumento).trim(),
       corporateStatus: Number(invoice.corporateStatus ?? 0),
       estadoCodigo: invoice.estadoCodigo ?? null,
       tipoFactura: invoice.tipoFactura ?? null,
-      codigoUbicacion: invoice.codigoUbicacion ?? null,
-      depositoNombre: invoice.depositoNombre ?? null,
-      depositoDireccion: invoice.depositoDireccion ?? null,
-      depositoLat: invoice.depositoLat ?? null,
-      depositoLng: invoice.depositoLng ?? null,
+      codigoUbicacion: codigoDeposito ? String(codigoDeposito).trim() : null,
+      depositoNombre: warehouse?.name ?? null,
+      depositoDireccion: warehouse?.address ?? null,
+      depositoLat: warehouse?.latitude ?? null,
+      depositoLng: warehouse?.longitude ?? null,
       codigoVendedor: invoice.codigoVendedor ?? null,
       descripcionPedido: invoice.descripcionPedido ?? null,
       montoTotal: Number(invoice.montoTotal ?? 0),
@@ -59,6 +69,7 @@ export default class InternalCorporateOrdersController {
         cantidad: Number(item.cantidad ?? 0),
         precio: Number(item.precio ?? 0),
         codigoUnidadVenta: item.codigoUnidadVenta ?? null,
+        codigoUbicacion: item.codigoUbicacion ?? null,
       })),
     }
 
