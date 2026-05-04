@@ -7,6 +7,7 @@ export const controllers = {
   AccessToken: () => import('#controllers/access_token_controller'),
   AdminStats: () => import('#controllers/admin_stats_controller'),
   AdminUsers: () => import('#controllers/admin_users_controller'),
+  AdminWarehouses: () => import('#controllers/admin_warehouses_controller'),
   Fleet: () => import('#controllers/fleet_controller'),
   InternalCorporateOrders: () => import('#controllers/internal_corporate_orders_controller'),
   NewAccount: () => import('#controllers/new_account_controller'),

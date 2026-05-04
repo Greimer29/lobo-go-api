@@ -67,20 +67,13 @@ type SaItemFactRow = {
   SaprodUnidad: string | null
 }
 
-type SaDepoRow = {
-  CodUbic: string | null
-  Descrip: string | null
-  Direccion: string | null
-  Latitud: number | null
-  Longitud: number | null
-}
-
 export type PedidoItem = {
   codigoItem: string | null
   descripcionItem: string | null
   cantidad: number
   precio: number
   codigoUnidadVenta: string | null
+  codigoUbicacion: string | null
 }
 
 export type PedidoCompuesto = {
@@ -100,13 +93,6 @@ export type PedidoCompuesto = {
 }
 
 const IDENT = /^[a-zA-Z_][a-zA-Z0-9_]*$/
-
-type SadevSadepoColEnvKey =
-  | 'SQLSERVER_SADEPO_COL_CODUBIC'
-  | 'SQLSERVER_SADEPO_COL_DESCRIP'
-  | 'SQLSERVER_SADEPO_COL_DIRECCION'
-  | 'SQLSERVER_SADEPO_COL_LATITUD'
-  | 'SQLSERVER_SADEPO_COL_LONGITUD'
 
 function sqlQualifiedTable(schemaRaw: string | undefined, tableRaw: string): string {
   const schema = (schemaRaw ?? 'dbo').trim() || 'dbo'
@@ -132,12 +118,6 @@ function envTableSaprod(): string {
   return v || 'SAPROD'
 }
 
-function envTableSadepo(): string {
-  const raw = env.get('SQLSERVER_TABLE_SADEPO')
-  const v = typeof raw === 'string' ? raw.trim() : ''
-  return v || 'SADEPO'
-}
-
 class SaDevService {
   private poolPromise?: Promise<mssql.ConnectionPool>
 
@@ -157,12 +137,6 @@ class SaDevService {
     const schema = env.get('SQLSERVER_SCHEMA')
     const s = typeof schema === 'string' ? schema.trim() : ''
     return sqlQualifiedTable(s || undefined, envTable('SQLSERVER_TABLE_SAITEMFACT', 'SAITEMFAC'))
-  }
-
-  private tableSaDepo() {
-    const schema = env.get('SQLSERVER_SCHEMA')
-    const s = typeof schema === 'string' ? schema.trim() : ''
-    return sqlQualifiedTable(s || undefined, envTableSadepo())
   }
 
   private skipItemLines() {
@@ -437,87 +411,6 @@ class SaDevService {
     return Array.from(byDocumento.values())
   }
 
-  /**
-   * Nombre físico de columna en SADEPO (o SQLSERVER_TABLE_SADEPO), mapeado a un alias fijo en el result set.
-   */
-  private bracketSadeoDepotCol(envKey: SadevSadepoColEnvKey, defaultName: string) {
-    const raw = env.get(envKey)
-    const name = (typeof raw === 'string' ? raw.trim() : '') || defaultName
-    if (!IDENT.test(name)) {
-      throw new Error(
-        `SQL Server SADEPO: identificador de columna no válido para ${envKey} (revisar api/.env): ${name}`
-      )
-    }
-    return `[${name}]`
-  }
-
-  private sadeoDepotCoordSelectSql(): { lat: string; lng: string } {
-    if (env.get('SQLSERVER_SADEPO_OMIT_COORDS') === true) {
-      return {
-        lat: 'CAST(NULL AS FLOAT) AS Latitud',
-        lng: 'CAST(NULL AS FLOAT) AS Longitud',
-      }
-    }
-    const lat =
-      env.get('SQLSERVER_SADEPO_OMIT_LATITUD') === true
-        ? 'CAST(NULL AS FLOAT) AS Latitud'
-        : `CAST(${this.bracketSadeoDepotCol('SQLSERVER_SADEPO_COL_LATITUD', 'Latitud')} AS FLOAT) AS Latitud`
-    const lng =
-      env.get('SQLSERVER_SADEPO_OMIT_LONGITUD') === true
-        ? 'CAST(NULL AS FLOAT) AS Longitud'
-        : `CAST(${this.bracketSadeoDepotCol('SQLSERVER_SADEPO_COL_LONGITUD', 'Longitud')} AS FLOAT) AS Longitud`
-    return { lat, lng }
-  }
-
-  /**
-   * Columnas de texto/clave del depósito: alias fijos CodUbic, Descrip, Direccion para el resto del servicio.
-   */
-  private sadeoDepotCoreSelectAndWhere(): { selectBody: string; whereCodColumn: string } {
-    const whereCod = this.bracketSadeoDepotCol('SQLSERVER_SADEPO_COL_CODUBIC', 'CodUbic')
-    const codSelect = `${whereCod} AS CodUbic`
-    const descrip =
-      env.get('SQLSERVER_SADEPO_OMIT_DESCRIP') === true
-        ? 'CAST(NULL AS NVARCHAR(512)) AS Descrip'
-        : `${this.bracketSadeoDepotCol('SQLSERVER_SADEPO_COL_DESCRIP', 'Descrip')} AS Descrip`
-    const direccion =
-      env.get('SQLSERVER_SADEPO_OMIT_DIRECCION') === true
-        ? 'CAST(NULL AS NVARCHAR(4000)) AS Direccion'
-        : `${this.bracketSadeoDepotCol('SQLSERVER_SADEPO_COL_DIRECCION', 'Direccion')} AS Direccion`
-    const { lat, lng } = this.sadeoDepotCoordSelectSql()
-    const selectBody = [codSelect, descrip, direccion, lat, lng].join(',\n        ')
-    return { selectBody, whereCodColumn: whereCod }
-  }
-
-  private async fetchSaDepoByCodUbic(codigos: string[]): Promise<Map<string, SaDepoRow>> {
-    const unique = Array.from(new Set(codigos.map((x) => String(x || '').trim()).filter(Boolean)))
-    if (unique.length === 0) return new Map()
-
-    const pool = await this.getPool()
-    const request = pool.request()
-    const params = unique.map((codigo, index) => {
-      const key = `codUbic_${index}`
-      request.input(key, mssql.VarChar, codigo)
-      return `@${key}`
-    })
-
-    const t = this.tableSaDepo()
-    const { selectBody, whereCodColumn } = this.sadeoDepotCoreSelectAndWhere()
-    const query = `
-      SELECT
-        ${selectBody}
-      FROM ${t}
-      WHERE ${whereCodColumn} IN (${params.join(', ')})
-    `
-    const result = await request.query<SaDepoRow>(query)
-    const map = new Map<string, SaDepoRow>()
-    for (const row of result.recordset) {
-      const code = String(row.CodUbic ?? '').trim()
-      if (!code) continue
-      map.set(code, row)
-    }
-    return map
-  }
-
   async listPedidosCompuestos(filters: SaDevQueryFilters): Promise<PedidoCompuesto[]> {
     const saDevRows = await this.list(filters)
     const pedidos = this.composePedidos(saDevRows)
@@ -548,6 +441,7 @@ class SaDevService {
         cantidad: Number(itemRow.Cantidad ?? 0),
         precio: Number(itemRow.Precio ?? 0),
         codigoUnidadVenta: itemRow.SaprodUnidad?.trim() || null,
+        codigoUbicacion: String(itemRow.CodUbic ?? '').trim() || null,
       })
       itemsByNumeroD.set(numeroD, list)
 
@@ -557,30 +451,16 @@ class SaDevService {
       }
     }
 
-    const codigosUbicacion = pedidos
-      .map((pedido) => {
-        const itemCodUbic = itemCodUbicByNumeroD.get(pedido.numeroDocumento) ?? null
-        const factCodUbic = factByNumeroD.get(pedido.numeroDocumento)?.CodUbic ?? null
-        return String(itemCodUbic ?? factCodUbic ?? '').trim()
-      })
-      .filter(Boolean)
-    const depoByCode = await this.fetchSaDepoByCodUbic(codigosUbicacion)
-
     const enrichedPedidos = pedidos.map((pedido) => {
       const fact = factByNumeroD.get(pedido.numeroDocumento)
       const itemCodUbic = itemCodUbicByNumeroD.get(pedido.numeroDocumento) ?? null
       const codigoUbicacion = itemCodUbic ?? fact?.CodUbic ?? null
-      const depo = codigoUbicacion ? depoByCode.get(String(codigoUbicacion).trim()) : undefined
       return {
         ...pedido,
         corporateStatus: Number(pedido.corporateStatus ?? 0),
         estadoCodigo: fact?.CodEsta ?? null,
         tipoFactura: fact?.Tipofac ?? null,
         codigoUbicacion,
-        depositoNombre: depo?.Descrip ?? null,
-        depositoDireccion: depo?.Direccion ?? null,
-        depositoLat: Number.isFinite(Number(depo?.Latitud)) ? Number(depo?.Latitud) : null,
-        depositoLng: Number.isFinite(Number(depo?.Longitud)) ? Number(depo?.Longitud) : null,
         codigoVendedor: fact?.CodVend ?? null,
         items: itemsByNumeroD.get(pedido.numeroDocumento) ?? [],
       }
