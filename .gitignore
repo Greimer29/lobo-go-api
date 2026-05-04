@@ -24,3 +24,10 @@ yarn-error.log
 
 # Platform specific
 .DS_Store
+
+# Bridge runtime
+_bridge_queue/
+storage/logs/
+
+# Legacy backups
+_legacy_backup/
