@@ -28,6 +28,11 @@ export type ScannedRoutes = {
     'admin.admin_users.approve': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.admin_users.reject': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.admin_stats.users': { paramsTuple?: []; params?: {} }
+    'admin.admin_warehouses.index': { paramsTuple?: []; params?: {} }
+    'admin.admin_warehouses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.admin_warehouses.store': { paramsTuple?: []; params?: {} }
+    'admin.admin_warehouses.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.admin_warehouses.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'fleet.fleet.stats': { paramsTuple?: []; params?: {} }
     'fleet.fleet.active_shifts': { paramsTuple?: []; params?: {} }
     'fleet.fleet.current_shift': { paramsTuple?: []; params?: {} }
@@ -37,13 +42,10 @@ export type ScannedRoutes = {
     'fleet.fleet.update_vehicle_status': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'fleet.fleet.create_vehicle': { paramsTuple?: []; params?: {} }
     'fleet.fleet.create_expense': { paramsTuple?: []; params?: {} }
-    'public.public_tracking.ingest_event': { paramsTuple?: []; params?: {} }
     'public.public_tracking.latest_location': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }
     'public.public_tracking.timeline': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }
-    'public.public_tracking.changed_locations': { paramsTuple?: []; params?: {} }
-    'public.public_tracking.changed_events': { paramsTuple?: []; params?: {} }
-    'public.public_tracking.changed_outbound_events': { paramsTuple?: []; params?: {} }
     'public.public_tracking.metrics': { paramsTuple?: []; params?: {} }
+    'internal.internal_corporate_orders.from_corporate': { paramsTuple?: []; params?: {} }
   }
   GET: {
     'profile.profile.show': { paramsTuple?: []; params?: {} }
@@ -56,15 +58,14 @@ export type ScannedRoutes = {
     'tracking.tracking_orders.live_location': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }
     'admin.admin_users.index': { paramsTuple?: []; params?: {} }
     'admin.admin_stats.users': { paramsTuple?: []; params?: {} }
+    'admin.admin_warehouses.index': { paramsTuple?: []; params?: {} }
+    'admin.admin_warehouses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'fleet.fleet.stats': { paramsTuple?: []; params?: {} }
     'fleet.fleet.active_shifts': { paramsTuple?: []; params?: {} }
     'fleet.fleet.current_shift': { paramsTuple?: []; params?: {} }
     'fleet.fleet.vehicle_panel': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'public.public_tracking.latest_location': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }
     'public.public_tracking.timeline': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }
-    'public.public_tracking.changed_locations': { paramsTuple?: []; params?: {} }
-    'public.public_tracking.changed_events': { paramsTuple?: []; params?: {} }
-    'public.public_tracking.changed_outbound_events': { paramsTuple?: []; params?: {} }
     'public.public_tracking.metrics': { paramsTuple?: []; params?: {} }
   }
   HEAD: {
@@ -78,15 +79,14 @@ export type ScannedRoutes = {
     'tracking.tracking_orders.live_location': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }
     'admin.admin_users.index': { paramsTuple?: []; params?: {} }
     'admin.admin_stats.users': { paramsTuple?: []; params?: {} }
+    'admin.admin_warehouses.index': { paramsTuple?: []; params?: {} }
+    'admin.admin_warehouses.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'fleet.fleet.stats': { paramsTuple?: []; params?: {} }
     'fleet.fleet.active_shifts': { paramsTuple?: []; params?: {} }
     'fleet.fleet.current_shift': { paramsTuple?: []; params?: {} }
     'fleet.fleet.vehicle_panel': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'public.public_tracking.latest_location': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }
     'public.public_tracking.timeline': { paramsTuple: [ParamValue]; params: {'numeroDocumento': ParamValue} }
-    'public.public_tracking.changed_locations': { paramsTuple?: []; params?: {} }
-    'public.public_tracking.changed_events': { paramsTuple?: []; params?: {} }
-    'public.public_tracking.changed_outbound_events': { paramsTuple?: []; params?: {} }
     'public.public_tracking.metrics': { paramsTuple?: []; params?: {} }
   }
   POST: {
@@ -101,11 +101,12 @@ export type ScannedRoutes = {
     'admin.admin_users.store': { paramsTuple?: []; params?: {} }
     'admin.admin_users.approve': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.admin_users.reject': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.admin_warehouses.store': { paramsTuple?: []; params?: {} }
     'fleet.fleet.start_shift': { paramsTuple?: []; params?: {} }
     'fleet.fleet.end_shift': { paramsTuple?: []; params?: {} }
     'fleet.fleet.create_vehicle': { paramsTuple?: []; params?: {} }
     'fleet.fleet.create_expense': { paramsTuple?: []; params?: {} }
-    'public.public_tracking.ingest_event': { paramsTuple?: []; params?: {} }
+    'internal.internal_corporate_orders.from_corporate': { paramsTuple?: []; params?: {} }
   }
   PATCH: {
     'tracking.tracking_orders.update_transport_reaction': { paramsTuple?: []; params?: {} }
@@ -114,6 +115,10 @@ export type ScannedRoutes = {
   }
   DELETE: {
     'tracking.tracking_orders.destroy_transport_observation': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.admin_warehouses.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+  }
+  PUT: {
+    'admin.admin_warehouses.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
 }
 declare module '@adonisjs/core/types/http' {

@@ -47,6 +47,13 @@ export interface ApiDefinition {
     adminStats: {
       users: typeof routes['admin.admin_stats.users']
     }
+    adminWarehouses: {
+      index: typeof routes['admin.admin_warehouses.index']
+      show: typeof routes['admin.admin_warehouses.show']
+      store: typeof routes['admin.admin_warehouses.store']
+      update: typeof routes['admin.admin_warehouses.update']
+      destroy: typeof routes['admin.admin_warehouses.destroy']
+    }
   }
   fleet: {
     fleet: {
@@ -63,13 +70,14 @@ export interface ApiDefinition {
   }
   public: {
     publicTracking: {
-      ingestEvent: typeof routes['public.public_tracking.ingest_event']
       latestLocation: typeof routes['public.public_tracking.latest_location']
       timeline: typeof routes['public.public_tracking.timeline']
-      changedLocations: typeof routes['public.public_tracking.changed_locations']
-      changedEvents: typeof routes['public.public_tracking.changed_events']
-      changedOutboundEvents: typeof routes['public.public_tracking.changed_outbound_events']
       metrics: typeof routes['public.public_tracking.metrics']
+    }
+  }
+  internal: {
+    internalCorporateOrders: {
+      fromCorporate: typeof routes['internal.internal_corporate_orders.from_corporate']
     }
   }
 }

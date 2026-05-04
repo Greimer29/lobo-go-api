@@ -68,3 +68,13 @@
 [2026-05-04T14:36:13.441+00:00] pushToRailway ok numeroDocumento=*00000029 synced=1 unchanged=0
 [2026-05-04T14:36:13.450+00:00] markSadevAsSynced ok numeroDocumento=*00000029 status=1 rows=1
 [2026-05-04T14:36:13.458+00:00] runCycle complete sent=2 fetched=2
+[2026-05-04T15:01:12.671+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-04T14:36:13.457+00:00
+[2026-05-04T15:01:12.729+00:00] fetchPendingInvoicesFromSqlServer ok rows=1
+[2026-05-04T15:01:13.391+00:00] pushToRailway ok numeroDocumento=*00000031 synced=1 unchanged=0
+[2026-05-04T15:01:13.399+00:00] markSadevAsSynced ok numeroDocumento=*00000031 status=1 rows=1
+[2026-05-04T15:01:13.406+00:00] runCycle complete sent=1 fetched=1
+[2026-05-04T16:03:32.790+00:00] fetchPendingInvoicesFromSqlServer start lastSuccessfulSyncAt=2026-05-04T15:01:13.405+00:00
+[2026-05-04T16:03:32.874+00:00] fetchPendingInvoicesFromSqlServer ok rows=1
+[2026-05-04T16:03:33.602+00:00] pushToRailway ok numeroDocumento=*00000032 synced=1 unchanged=0
+[2026-05-04T16:03:33.613+00:00] markSadevAsSynced ok numeroDocumento=*00000032 status=1 rows=1
+[2026-05-04T16:03:33.616+00:00] runCycle complete sent=1 fetched=1

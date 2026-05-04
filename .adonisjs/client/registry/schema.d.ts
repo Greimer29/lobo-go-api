@@ -295,6 +295,66 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin_stats_controller').default['users']>>>
     }
   }
+  'admin.admin_warehouses.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/admin/warehouses'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin_warehouses_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin_warehouses_controller').default['index']>>>
+    }
+  }
+  'admin.admin_warehouses.show': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/admin/warehouses/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin_warehouses_controller').default['show']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin_warehouses_controller').default['show']>>>
+    }
+  }
+  'admin.admin_warehouses.store': {
+    methods: ["POST"]
+    pattern: '/api/v1/admin/warehouses'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin_warehouses_controller').default['store']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin_warehouses_controller').default['store']>>>
+    }
+  }
+  'admin.admin_warehouses.update': {
+    methods: ["PUT"]
+    pattern: '/api/v1/admin/warehouses/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin_warehouses_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin_warehouses_controller').default['update']>>>
+    }
+  }
+  'admin.admin_warehouses.destroy': {
+    methods: ["DELETE"]
+    pattern: '/api/v1/admin/warehouses/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin_warehouses_controller').default['destroy']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin_warehouses_controller').default['destroy']>>>
+    }
+  }
   'fleet.fleet.stats': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/fleet/stats'
@@ -403,18 +463,6 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/fleet_controller').default['createExpense']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
-  'public.public_tracking.ingest_event': {
-    methods: ["POST"]
-    pattern: '/api/v1/public/events'
-    types: {
-      body: {}
-      paramsTuple: []
-      params: {}
-      query: {}
-      response: ExtractResponse<Awaited<ReturnType<import('#controllers/public_tracking_controller').default['ingestEvent']>>>
-      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/public_tracking_controller').default['ingestEvent']>>>
-    }
-  }
   'public.public_tracking.latest_location': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/public/orders/:numeroDocumento/location'
@@ -439,42 +487,6 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/public_tracking_controller').default['timeline']>>>
     }
   }
-  'public.public_tracking.changed_locations': {
-    methods: ["GET","HEAD"]
-    pattern: '/api/v1/public/orders/locations/changed'
-    types: {
-      body: {}
-      paramsTuple: []
-      params: {}
-      query: {}
-      response: ExtractResponse<Awaited<ReturnType<import('#controllers/public_tracking_controller').default['changedLocations']>>>
-      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/public_tracking_controller').default['changedLocations']>>>
-    }
-  }
-  'public.public_tracking.changed_events': {
-    methods: ["GET","HEAD"]
-    pattern: '/api/v1/public/events/changed'
-    types: {
-      body: {}
-      paramsTuple: []
-      params: {}
-      query: {}
-      response: ExtractResponse<Awaited<ReturnType<import('#controllers/public_tracking_controller').default['changedEvents']>>>
-      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/public_tracking_controller').default['changedEvents']>>>
-    }
-  }
-  'public.public_tracking.changed_outbound_events': {
-    methods: ["GET","HEAD"]
-    pattern: '/api/v1/public/events/changed-outbound'
-    types: {
-      body: {}
-      paramsTuple: []
-      params: {}
-      query: {}
-      response: ExtractResponse<Awaited<ReturnType<import('#controllers/public_tracking_controller').default['changedOutboundEvents']>>>
-      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/public_tracking_controller').default['changedOutboundEvents']>>>
-    }
-  }
   'public.public_tracking.metrics': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/public/metrics'
@@ -485,6 +497,18 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/public_tracking_controller').default['metrics']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/public_tracking_controller').default['metrics']>>>
+    }
+  }
+  'internal.internal_corporate_orders.from_corporate': {
+    methods: ["POST"]
+    pattern: '/api/v1/internal/orders/from-corporate'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/internal_corporate_orders_controller').default['fromCorporate']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/internal_corporate_orders_controller').default['fromCorporate']>>>
     }
   }
 }

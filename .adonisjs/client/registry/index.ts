@@ -150,6 +150,36 @@ const routes = {
     tokens: [{"old":"/api/v1/admin/stats/users","type":0,"val":"api","end":""},{"old":"/api/v1/admin/stats/users","type":0,"val":"v1","end":""},{"old":"/api/v1/admin/stats/users","type":0,"val":"admin","end":""},{"old":"/api/v1/admin/stats/users","type":0,"val":"stats","end":""},{"old":"/api/v1/admin/stats/users","type":0,"val":"users","end":""}],
     types: placeholder as Registry['admin.admin_stats.users']['types'],
   },
+  'admin.admin_warehouses.index': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/admin/warehouses',
+    tokens: [{"old":"/api/v1/admin/warehouses","type":0,"val":"api","end":""},{"old":"/api/v1/admin/warehouses","type":0,"val":"v1","end":""},{"old":"/api/v1/admin/warehouses","type":0,"val":"admin","end":""},{"old":"/api/v1/admin/warehouses","type":0,"val":"warehouses","end":""}],
+    types: placeholder as Registry['admin.admin_warehouses.index']['types'],
+  },
+  'admin.admin_warehouses.show': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/admin/warehouses/:id',
+    tokens: [{"old":"/api/v1/admin/warehouses/:id","type":0,"val":"api","end":""},{"old":"/api/v1/admin/warehouses/:id","type":0,"val":"v1","end":""},{"old":"/api/v1/admin/warehouses/:id","type":0,"val":"admin","end":""},{"old":"/api/v1/admin/warehouses/:id","type":0,"val":"warehouses","end":""},{"old":"/api/v1/admin/warehouses/:id","type":1,"val":"id","end":""}],
+    types: placeholder as Registry['admin.admin_warehouses.show']['types'],
+  },
+  'admin.admin_warehouses.store': {
+    methods: ["POST"],
+    pattern: '/api/v1/admin/warehouses',
+    tokens: [{"old":"/api/v1/admin/warehouses","type":0,"val":"api","end":""},{"old":"/api/v1/admin/warehouses","type":0,"val":"v1","end":""},{"old":"/api/v1/admin/warehouses","type":0,"val":"admin","end":""},{"old":"/api/v1/admin/warehouses","type":0,"val":"warehouses","end":""}],
+    types: placeholder as Registry['admin.admin_warehouses.store']['types'],
+  },
+  'admin.admin_warehouses.update': {
+    methods: ["PUT"],
+    pattern: '/api/v1/admin/warehouses/:id',
+    tokens: [{"old":"/api/v1/admin/warehouses/:id","type":0,"val":"api","end":""},{"old":"/api/v1/admin/warehouses/:id","type":0,"val":"v1","end":""},{"old":"/api/v1/admin/warehouses/:id","type":0,"val":"admin","end":""},{"old":"/api/v1/admin/warehouses/:id","type":0,"val":"warehouses","end":""},{"old":"/api/v1/admin/warehouses/:id","type":1,"val":"id","end":""}],
+    types: placeholder as Registry['admin.admin_warehouses.update']['types'],
+  },
+  'admin.admin_warehouses.destroy': {
+    methods: ["DELETE"],
+    pattern: '/api/v1/admin/warehouses/:id',
+    tokens: [{"old":"/api/v1/admin/warehouses/:id","type":0,"val":"api","end":""},{"old":"/api/v1/admin/warehouses/:id","type":0,"val":"v1","end":""},{"old":"/api/v1/admin/warehouses/:id","type":0,"val":"admin","end":""},{"old":"/api/v1/admin/warehouses/:id","type":0,"val":"warehouses","end":""},{"old":"/api/v1/admin/warehouses/:id","type":1,"val":"id","end":""}],
+    types: placeholder as Registry['admin.admin_warehouses.destroy']['types'],
+  },
   'fleet.fleet.stats': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/fleet/stats',
@@ -204,12 +234,6 @@ const routes = {
     tokens: [{"old":"/api/v1/fleet/expenses","type":0,"val":"api","end":""},{"old":"/api/v1/fleet/expenses","type":0,"val":"v1","end":""},{"old":"/api/v1/fleet/expenses","type":0,"val":"fleet","end":""},{"old":"/api/v1/fleet/expenses","type":0,"val":"expenses","end":""}],
     types: placeholder as Registry['fleet.fleet.create_expense']['types'],
   },
-  'public.public_tracking.ingest_event': {
-    methods: ["POST"],
-    pattern: '/api/v1/public/events',
-    tokens: [{"old":"/api/v1/public/events","type":0,"val":"api","end":""},{"old":"/api/v1/public/events","type":0,"val":"v1","end":""},{"old":"/api/v1/public/events","type":0,"val":"public","end":""},{"old":"/api/v1/public/events","type":0,"val":"events","end":""}],
-    types: placeholder as Registry['public.public_tracking.ingest_event']['types'],
-  },
   'public.public_tracking.latest_location': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/public/orders/:numeroDocumento/location',
@@ -222,29 +246,17 @@ const routes = {
     tokens: [{"old":"/api/v1/public/orders/:numeroDocumento/timeline","type":0,"val":"api","end":""},{"old":"/api/v1/public/orders/:numeroDocumento/timeline","type":0,"val":"v1","end":""},{"old":"/api/v1/public/orders/:numeroDocumento/timeline","type":0,"val":"public","end":""},{"old":"/api/v1/public/orders/:numeroDocumento/timeline","type":0,"val":"orders","end":""},{"old":"/api/v1/public/orders/:numeroDocumento/timeline","type":1,"val":"numeroDocumento","end":""},{"old":"/api/v1/public/orders/:numeroDocumento/timeline","type":0,"val":"timeline","end":""}],
     types: placeholder as Registry['public.public_tracking.timeline']['types'],
   },
-  'public.public_tracking.changed_locations': {
-    methods: ["GET","HEAD"],
-    pattern: '/api/v1/public/orders/locations/changed',
-    tokens: [{"old":"/api/v1/public/orders/locations/changed","type":0,"val":"api","end":""},{"old":"/api/v1/public/orders/locations/changed","type":0,"val":"v1","end":""},{"old":"/api/v1/public/orders/locations/changed","type":0,"val":"public","end":""},{"old":"/api/v1/public/orders/locations/changed","type":0,"val":"orders","end":""},{"old":"/api/v1/public/orders/locations/changed","type":0,"val":"locations","end":""},{"old":"/api/v1/public/orders/locations/changed","type":0,"val":"changed","end":""}],
-    types: placeholder as Registry['public.public_tracking.changed_locations']['types'],
-  },
-  'public.public_tracking.changed_events': {
-    methods: ["GET","HEAD"],
-    pattern: '/api/v1/public/events/changed',
-    tokens: [{"old":"/api/v1/public/events/changed","type":0,"val":"api","end":""},{"old":"/api/v1/public/events/changed","type":0,"val":"v1","end":""},{"old":"/api/v1/public/events/changed","type":0,"val":"public","end":""},{"old":"/api/v1/public/events/changed","type":0,"val":"events","end":""},{"old":"/api/v1/public/events/changed","type":0,"val":"changed","end":""}],
-    types: placeholder as Registry['public.public_tracking.changed_events']['types'],
-  },
-  'public.public_tracking.changed_outbound_events': {
-    methods: ["GET","HEAD"],
-    pattern: '/api/v1/public/events/changed-outbound',
-    tokens: [{"old":"/api/v1/public/events/changed-outbound","type":0,"val":"api","end":""},{"old":"/api/v1/public/events/changed-outbound","type":0,"val":"v1","end":""},{"old":"/api/v1/public/events/changed-outbound","type":0,"val":"public","end":""},{"old":"/api/v1/public/events/changed-outbound","type":0,"val":"events","end":""},{"old":"/api/v1/public/events/changed-outbound","type":0,"val":"changed-outbound","end":""}],
-    types: placeholder as Registry['public.public_tracking.changed_outbound_events']['types'],
-  },
   'public.public_tracking.metrics': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/public/metrics',
     tokens: [{"old":"/api/v1/public/metrics","type":0,"val":"api","end":""},{"old":"/api/v1/public/metrics","type":0,"val":"v1","end":""},{"old":"/api/v1/public/metrics","type":0,"val":"public","end":""},{"old":"/api/v1/public/metrics","type":0,"val":"metrics","end":""}],
     types: placeholder as Registry['public.public_tracking.metrics']['types'],
+  },
+  'internal.internal_corporate_orders.from_corporate': {
+    methods: ["POST"],
+    pattern: '/api/v1/internal/orders/from-corporate',
+    tokens: [{"old":"/api/v1/internal/orders/from-corporate","type":0,"val":"api","end":""},{"old":"/api/v1/internal/orders/from-corporate","type":0,"val":"v1","end":""},{"old":"/api/v1/internal/orders/from-corporate","type":0,"val":"internal","end":""},{"old":"/api/v1/internal/orders/from-corporate","type":0,"val":"orders","end":""},{"old":"/api/v1/internal/orders/from-corporate","type":0,"val":"from-corporate","end":""}],
+    types: placeholder as Registry['internal.internal_corporate_orders.from_corporate']['types'],
   },
 } as const satisfies Record<string, AdonisEndpoint>
 
