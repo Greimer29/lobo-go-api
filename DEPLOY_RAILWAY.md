@@ -35,8 +35,8 @@ Minimo obligatorio:
 Recomendado:
 
 - `NODE_ENV=production`
-- `RUN_MIGRATIONS_ON_BOOT=true`
-- `RUN_DEMO_SEED_ON_BOOT=false`
+- `RUN_MIGRATIONS_ON_BOOT=true` — cada arranque del contenedor ejecuta `migration:run --force` (ver `api/docker-entrypoint.sh`).
+- `RUN_DEMO_SEED_ON_BOOT` — **`false`** en producción con datos reales (**las contraseñas demo son públicas** en `database/seeders/demo_user_seeder.ts`). Pon **`true`** solo si querés garantizar usuarios/warehouses demo en cada deploy (seeders idempotentes: demo + warehouses 01/02).
 
 ## 4) Base de datos
 
@@ -52,6 +52,7 @@ Si usas MySQL de Railway, copia host/port/user/password/database del plugin MySQ
 1. Verifica que el servicio quede en estado **Healthy**
 2. Prueba endpoint de salud/autenticacion desde la URL publica de Railway
 3. Verifica en logs que migraciones corran sin error
+4. Seeders demo: con `RUN_DEMO_SEED_ON_BOOT=true`, deben ejecutarse en **`preDeployCommand`** (`railway-predeploy.sh`, ver `railway.toml`). Si no ves `demo@local.test` en MySQL, revisa **Deploy logs** por errores de `db:seed`. En **Settings** del servicio, si hay **Custom Start Command** que omita el Dockerfile, deja el comando vacío o manten `node build/bin/server.js` (Railway debería anteponer `ENTRYPOINT`; si no, los seeders igual corren en pre-deploy).
 
 ## 6) Nota de seguridad
 

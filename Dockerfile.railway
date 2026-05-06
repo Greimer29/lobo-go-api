@@ -18,7 +18,11 @@ COPY --from=build /app/build ./build
 COPY --from=build /app/package*.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
+COPY railway-predeploy.sh /app/railway-predeploy.sh
+RUN sed -i 's/\r$//' /docker-entrypoint.sh \
+  && chmod +x /docker-entrypoint.sh \
+  && sed -i 's/\r$//' /app/railway-predeploy.sh \
+  && chmod +x /app/railway-predeploy.sh
 EXPOSE 3333
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["node", "build/bin/server.js"]

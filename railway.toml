@@ -3,7 +3,10 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile.railway"
 
 [deploy]
+# Deja que la imagen arranque con ENTRYPOINT=docker-entrypoint.sh (migrar + seed opcional + servidor).
+# Si en el panel de Railway tienes "Custom Start Command", bórralo o úsalo igual que el CMD del Dockerfile.
 startCommand = "node build/bin/server.js"
-preDeployCommand = "node build/ace.js migration:run --force"
+# Los seeders también corren aquí: en muchos despliegues el entrypoint no se ejecuta si el start command queda aislado.
+preDeployCommand = "sh /app/railway-predeploy.sh"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
