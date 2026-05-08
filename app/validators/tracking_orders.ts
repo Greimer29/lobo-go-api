@@ -17,5 +17,9 @@ export const updateTransportReactionValidator = vine.create({
 export const updateDestinationValidator = vine.create({
   numeroDocumento: vine.string().trim().minLength(1).maxLength(64),
   destinationAddress: vine.string().trim().maxLength(500).nullable(),
-  googleMapsLink: vine.string().trim().minLength(1).maxLength(1200),
+  googleMapsLink: vine.string().trim().maxLength(1200).optional(),
+  destinationLat: vine.number().min(-90).max(90).optional(),
+  destinationLng: vine.number().min(-180).max(180).optional(),
+  destinationSource: vine.enum(['admin_map', 'admin_link', 'admin_address']).optional(),
+  destinationNote: vine.string().trim().maxLength(500).nullable(),
 })

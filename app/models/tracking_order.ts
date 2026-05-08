@@ -63,6 +63,9 @@ export default class TrackingOrder extends BaseModel {
   @column({ columnName: 'destination_maps_link' })
   declare destinationMapsLink: string | null
 
+  @column({ columnName: 'destination_note' })
+  declare destinationNote: string | null
+
   @column({ columnName: 'vehicle_id' })
   declare vehicleId: number | null
 

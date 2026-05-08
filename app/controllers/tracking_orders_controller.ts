@@ -296,8 +296,9 @@ export default class TrackingOrdersController {
   }
 
   /**
-   * PATCH: administrador define destino del pedido (enlace de Google Maps obligatorio; dirección opcional).
-   * Coordenadas se derivan del enlace (parsing / redirecciones) o, si no, de la geocodificación de la dirección.
+   * PATCH: administrador define destino del pedido.
+   * Prioridad de resolución:
+   * 1) coordenadas explícitas (mapa), 2) link de Google Maps, 3) geocoding de dirección.
    */
   async updateDestination({ auth, request, params, response }: HttpContext) {
     const user = auth.getUserOrFail() as User
@@ -315,7 +316,6 @@ export default class TrackingOrdersController {
     if (!order) return response.notFound({ message: 'Pedido no encontrado' })
 
     const mapsLink = String(payload.googleMapsLink ?? '').trim()
-    const fromMaps = await bestDestinationForMapsLink(mapsLink)
     const addressFromBody = String(payload.destinationAddress ?? '').trim() || null
     const hasAddress = Boolean(addressFromBody)
 
@@ -323,27 +323,41 @@ export default class TrackingOrdersController {
     let destinationLng: number | null = null
     let destinationSource: string | null = null
 
-    if (fromMaps.point) {
-      destinationLat = fromMaps.point.lat
-      destinationLng = fromMaps.point.lng
-      destinationSource = fromMaps.source
+    // PRIORIDAD 1: coords explícitas del frontend (mapa interactivo).
+    if (payload.destinationLat != null && payload.destinationLng != null) {
+      destinationLat = payload.destinationLat
+      destinationLng = payload.destinationLng
+      destinationSource = payload.destinationSource ?? 'admin_map'
+    } else if (mapsLink) {
+      // PRIORIDAD 2: parseo del link de Google Maps.
+      const fromMaps = await bestDestinationForMapsLink(mapsLink)
+      if (fromMaps.point) {
+        destinationLat = fromMaps.point.lat
+        destinationLng = fromMaps.point.lng
+        destinationSource = payload.destinationSource ?? fromMaps.source
+      } else if (hasAddress) {
+        // PRIORIDAD 3: geocoding de dirección.
+        const geocoded = await geocodeAddress(addressFromBody, 'admin_address_geocoded')
+        destinationLat = geocoded?.lat ?? null
+        destinationLng = geocoded?.lng ?? null
+        destinationSource = geocoded?.source ?? 'admin_address'
+      } else {
+        destinationSource = 'admin_link_unresolved'
+      }
     } else if (hasAddress) {
+      // PRIORIDAD 4: solo dirección (sin link ni coords).
       const geocoded = await geocodeAddress(addressFromBody, 'admin_address_geocoded')
       destinationLat = geocoded?.lat ?? null
       destinationLng = geocoded?.lng ?? null
       destinationSource = geocoded?.source ?? 'admin_address'
-    } else {
-      /* Enlace sin lat/lng resoluble y sin título de lugar, y sin dirección */
-      destinationLat = null
-      destinationLng = null
-      destinationSource = 'admin_link_unresolved'
     }
 
     order.destinationAddress = addressFromBody
     order.destinationLat = destinationLat
     order.destinationLng = destinationLng
     order.destinationSource = destinationSource
-    order.destinationMapsLink = mapsLink
+    order.destinationMapsLink = mapsLink || null
+    order.destinationNote = payload.destinationNote?.trim() || null
     normalizeInvalidForeignKeys(order)
     await order.save()
 
@@ -361,6 +375,7 @@ export default class TrackingOrdersController {
         longitude: order.destinationLng,
         source: order.destinationSource,
         mapsLink: order.destinationMapsLink,
+        note: order.destinationNote,
       },
     })
   }
