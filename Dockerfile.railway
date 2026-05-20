@@ -7,7 +7,12 @@ FROM node:24-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Remove any .env files that may have been copied so they can never
+# shadow Railway's runtime environment variables in the build output.
+RUN find . -maxdepth 1 -name '.env' -o -name '.env.*' ! -name '.env.example' | xargs -r rm -f
 RUN npm run build
+# Ensure no .env files end up inside the compiled build/ directory either.
+RUN find build/ -maxdepth 2 -name '.env' -o -name '.env.*' | xargs -r rm -f
 
 FROM node:24-alpine AS runner
 WORKDIR /app
